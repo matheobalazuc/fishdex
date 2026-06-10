@@ -558,7 +558,6 @@ class HomeScreen extends StatelessWidget {
       ],
     );
   }
-}
 
   // ── Fil des prises publiées ────────────────────────────────────────
   Widget _buildFeedSection() {
