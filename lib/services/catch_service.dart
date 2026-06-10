@@ -11,15 +11,22 @@ class CatchService {
     return ref.id;
   }
 
+  // Tri côté client pour éviter l'index composite Firestore
   static Stream<List<FishCatch>> stream() => _db
       .collection(_col)
       .where('userId', isEqualTo: userId)
-      .orderBy('timestamp', descending: true)
       .snapshots()
-      .map((s) => s.docs
-          .map((d) => FishCatch.fromFirestore(d.id, d.data()))
-          .toList());
+      .map((s) {
+        final list = s.docs
+            .map((d) => FishCatch.fromFirestore(d.id, d.data()))
+            .toList();
+        list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        return list;
+      });
 
   static Future<void> delete(String id) =>
       _db.collection(_col).doc(id).delete();
+
+  static Future<void> update(String id, Map<String, dynamic> fields) =>
+      _db.collection(_col).doc(id).update(fields);
 }

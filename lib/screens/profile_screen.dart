@@ -1,19 +1,20 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../models/catch_model.dart';
+import '../services/catch_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
+import 'catch_detail_screen.dart';
 
-// Profil demo fixe
-const _kName     = 'Alex Pêcheur';
-const _kUsername = '@alex_fish';
-const _kLocation = 'Nice 🌊';
-const _kLevel    = 12;
-
-// Version app
-const _kVersion     = '1.0.0';
-const _kBuildDate   = '10/06/2026';
-const _kUpdateTime  = '14:32';
+const _kName      = 'Alex Pêcheur';
+const _kUsername  = '@alex_fish';
+const _kLocation  = 'Nice 🌊';
+const _kLevel     = 12;
+const _kVersion   = '1.0.0';
+const _kBuildDate = '10/06/2026';
+const _kUpdateTime = '14:32';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -25,38 +26,30 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   int _tab = 0;
 
-  static const _collection = [
-    _Fish('Brochet', '🐟', 4, false),
-    _Fish('Truite', '🐠', 3, true),
-    _Fish('Carpe', '🐡', 5, false),
-    _Fish('Bar', '🦈', 3, false),
-    _Fish('Sandre', '🐟', 4, false),
-    _Fish('Perche', '🐠', 2, true),
-    _Fish('Anguille', '🐍', 5, true),
-    _Fish('Tanche', '🐡', 1, false),
-    _Fish('???', '❓', 0, false),
-    _Fish('???', '❓', 0, false),
-    _Fish('???', '❓', 0, false),
-    _Fish('???', '❓', 0, false),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(child: _buildHeader()),
-        SliverToBoxAdapter(child: _buildStats()),
-        SliverToBoxAdapter(child: _buildTabBar()),
-        if (_tab == 0) _buildCollectionGrid(),
-        if (_tab == 1) _buildAchievements(),
-        SliverToBoxAdapter(child: _buildVersionFooter()),
-      ],
+    return StreamBuilder<List<FishCatch>>(
+      stream: CatchService.stream(),
+      builder: (context, snap) {
+        final catches = snap.data ?? [];
+        return CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(child: _buildHeader(catches)),
+            SliverToBoxAdapter(child: _buildStats(catches)),
+            SliverToBoxAdapter(child: _buildTabBar()),
+            if (_tab == 0) _buildCollectionGrid(catches),
+            if (_tab == 1) _buildAchievements(catches),
+            SliverToBoxAdapter(child: _buildVersionFooter()),
+          ],
+        );
+      },
     );
   }
 
   // ── Header profil ─────────────────────────────────────────────────
-  Widget _buildHeader() {
+  Widget _buildHeader(List<FishCatch> catches) {
+    final speciesCount = catches.map((c) => c.species).toSet().length;
     return Container(
       color: Colors.white,
       child: Column(
@@ -137,7 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _divider(),
               _followStat('234', 'Abonnements'),
               _divider(),
-              _followStat('67', 'Espèces'),
+              _followStat('$speciesCount', 'Espèces'),
             ],
           ),
           const SizedBox(height: 20),
@@ -160,16 +153,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   );
 
   // ── Stats cards ───────────────────────────────────────────────────
-  Widget _buildStats() {
+  Widget _buildStats(List<FishCatch> catches) {
+    final species = catches.map((c) => c.species).toSet().length;
+    final bestWeight = catches
+        .where((c) => c.weightkg != null)
+        .map((c) => c.weightkg!)
+        .fold<double?>(null, (best, w) => best == null || w > best ? w : best);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Row(
         children: [
-          _statCard('127', 'Prises', '🎣', FishdexTheme.primary),
+          _statCard('${catches.length}', 'Prises', '🎣', FishdexTheme.primary),
           const SizedBox(width: 10),
-          _statCard('8,4 kg', 'Record', '🏆', FishdexTheme.golden),
+          _statCard(bestWeight != null ? '${bestWeight}kg' : '—', 'Record', '🏆', FishdexTheme.golden),
           const SizedBox(width: 10),
-          _statCard('67/200', 'Dex', '📖', FishdexTheme.coral),
+          _statCard('$species', 'Espèces', '📖', FishdexTheme.coral),
         ],
       ),
     );
@@ -230,73 +228,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Collection grid ───────────────────────────────────────────────
-  Widget _buildCollectionGrid() {
+  // ── Collection grid (vraies données Firestore) ────────────────────
+  Widget _buildCollectionGrid(List<FishCatch> catches) {
+    if (catches.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            children: [
+              const Text('🎣', style: TextStyle(fontSize: 48)),
+              const SizedBox(height: 12),
+              const Text('Aucune prise enregistrée',
+                style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 15)),
+            ],
+          ),
+        ),
+      );
+    }
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       sliver: SliverGrid(
         delegate: SliverChildBuilderDelegate(
           (context, i) {
-            final fish = _collection[i];
-            final locked = fish.name == '???';
-            return Padding(
-              padding: const EdgeInsets.all(4),
-              child: GlassCard(
-                radius: 18,
-                borderColor: fish.isRare ? FishdexTheme.golden.withOpacity(0.4) : null,
-                child: Stack(children: [
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(locked ? '❓' : fish.emoji, style: const TextStyle(fontSize: 30)),
-                        const SizedBox(height: 4),
-                        Text(fish.name,
-                          style: TextStyle(
-                            color: locked ? FishdexTheme.textTertiary : FishdexTheme.textPrimary,
-                            fontSize: 10, fontWeight: FontWeight.w600),
-                          textAlign: TextAlign.center),
-                        if (!locked && fish.stars > 0)
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(fish.stars,
-                              (_) => const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 8)),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (fish.isRare && !locked)
-                    Positioned(
-                      top: 6, right: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(color: FishdexTheme.golden.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('★', style: TextStyle(color: FishdexTheme.golden, fontSize: 10)),
+            final c = catches[i];
+            return GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: c)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: GlassCard(
+                  radius: 18,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                          child: _catchThumb(c),
+                        ),
                       ),
-                    ),
-                ]),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
+                        child: Column(
+                          children: [
+                            Text(c.frenchName,
+                              maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+                              style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 9, fontWeight: FontWeight.w600)),
+                            Text('${(c.confidence * 100).toStringAsFixed(0)}%',
+                              style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 8)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             )
                 .animate()
                 .fadeIn(delay: Duration(milliseconds: 40 * i))
                 .scale(begin: const Offset(0.88, 0.88));
           },
-          childCount: _collection.length,
+          childCount: catches.length,
         ),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4, mainAxisSpacing: 4, crossAxisSpacing: 4, childAspectRatio: 0.85),
+          crossAxisCount: 4, mainAxisSpacing: 4, crossAxisSpacing: 4, childAspectRatio: 0.78),
       ),
     );
   }
 
-  // ── Achievements ──────────────────────────────────────────────────
-  Widget _buildAchievements() {
+  Widget _catchThumb(FishCatch c) {
+    if (c.imageBase64 != null && c.imageBase64!.isNotEmpty) {
+      try {
+        return Image.memory(base64Decode(c.imageBase64!), fit: BoxFit.cover, width: double.infinity);
+      } catch (_) {}
+    }
+    if (c.fishImageUrl != null) {
+      return Image.network(c.fishImageUrl!, fit: BoxFit.cover, width: double.infinity,
+        errorBuilder: (_, __, ___) => _thumbFallback());
+    }
+    return _thumbFallback();
+  }
+
+  Widget _thumbFallback() => Container(
+    color: FishdexTheme.primary.withOpacity(0.06),
+    child: const Center(child: Text('🐟', style: TextStyle(fontSize: 22))),
+  );
+
+  // ── Achievements (basés sur vraies données) ───────────────────────
+  Widget _buildAchievements(List<FishCatch> catches) {
     final list = [
-      _Achievement('Premier Lancer', 'Votre première prise !', '🎣', true),
-      _Achievement('Chasseur du Brochet', 'Attrapez 10 brochets', '🏹', true),
-      _Achievement('Noctambule', 'Pêche de nuit réussie', '🌙', true),
-      _Achievement('Légende des Lacs', 'Attrapez 50 espèces', '🏆', false),
-      _Achievement('Maître Carpe', 'Record de taille', '🐡', false),
+      _Achievement('Premier Lancer', 'Ta première prise !', '🎣', catches.isNotEmpty),
+      _Achievement('Collectionneur', '5 prises enregistrées', '📖', catches.length >= 5),
+      _Achievement('Explorateur', 'Identifie 3 espèces différentes', '🔬', catches.map((c) => c.species).toSet().length >= 3),
+      _Achievement('Légende', '10 prises enregistrées', '🏆', catches.length >= 10),
+      _Achievement('Maître Pêcheur', '10 espèces différentes', '🌊', catches.map((c) => c.species).toSet().length >= 10),
     ];
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -374,13 +400,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ]),
     );
   }
-}
-
-class _Fish {
-  final String name, emoji;
-  final int stars;
-  final bool isRare;
-  const _Fish(this.name, this.emoji, this.stars, this.isRare);
 }
 
 class _Achievement {

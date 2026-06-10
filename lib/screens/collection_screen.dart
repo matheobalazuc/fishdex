@@ -6,6 +6,7 @@ import '../models/catch_model.dart';
 import '../services/catch_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
+import 'catch_detail_screen.dart';
 
 class CollectionScreen extends StatelessWidget {
   const CollectionScreen({super.key});
@@ -17,7 +18,6 @@ class CollectionScreen extends StatelessWidget {
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // Header
           SliverAppBar(
             backgroundColor: Colors.white,
             surfaceTintColor: Colors.transparent,
@@ -31,10 +31,29 @@ class CollectionScreen extends StatelessWidget {
             ),
           ),
 
-          // Stream Firestore
           StreamBuilder<List<FishCatch>>(
             stream: CatchService.stream(),
             builder: (context, snap) {
+              if (snap.hasError) {
+                return SliverFillRemaining(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('⚠️', style: TextStyle(fontSize: 40)),
+                          const SizedBox(height: 12),
+                          Text('Erreur : ${snap.error}',
+                            style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13),
+                            textAlign: TextAlign.center),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }
+
               if (snap.connectionState == ConnectionState.waiting) {
                 return const SliverFillRemaining(
                   child: Center(
@@ -46,9 +65,7 @@ class CollectionScreen extends StatelessWidget {
               final catches = snap.data ?? [];
 
               if (catches.isEmpty) {
-                return SliverFillRemaining(
-                  child: _EmptyState(),
-                );
+                return SliverFillRemaining(child: _EmptyState());
               }
 
               return SliverPadding(
@@ -94,54 +111,57 @@ class _CatchTile extends StatelessWidget {
       },
       child: Padding(
         padding: const EdgeInsets.only(bottom: 12),
-        child: GlassCard(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                // Vignette image
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: 64,
-                    height: 64,
-                    child: _buildThumbnail(),
+        child: GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: catch_)),
+          ),
+          child: GlassCard(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(width: 64, height: 64, child: _buildThumbnail()),
                   ),
-                ),
-                const SizedBox(width: 14),
-                // Infos
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(catch_.frenchName,
+                          style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(catch_.species,
+                          style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            _pill(catch_.family, FishdexTheme.primary),
+                            const SizedBox(width: 6),
+                            _pill('${(catch_.confidence * 100).toStringAsFixed(0)}%', FishdexTheme.mint),
+                            if (catch_.location != null) ...[
+                              const SizedBox(width: 6),
+                              _pill('📍', FishdexTheme.golden),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(catch_.frenchName,
-                        style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
-                      Text(catch_.species,
-                        style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          _pill(catch_.family, FishdexTheme.primary),
-                          const SizedBox(width: 6),
-                          _pill('${(catch_.confidence * 100).toStringAsFixed(0)}%', FishdexTheme.mint),
-                        ],
-                      ),
+                      Text(_formatDate(catch_.timestamp),
+                        style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11, fontWeight: FontWeight.w500)),
+                      Text(_formatTime(catch_.timestamp),
+                        style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+                      const SizedBox(height: 4),
+                      const Icon(CupertinoIcons.chevron_right, size: 14, color: FishdexTheme.textTertiary),
                     ],
                   ),
-                ),
-                // Date
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(_formatDate(catch_.timestamp),
-                      style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11, fontWeight: FontWeight.w500)),
-                    Text(_formatTime(catch_.timestamp),
-                      style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
-                    const SizedBox(height: 4),
-                    Icon(CupertinoIcons.chevron_right, size: 14, color: FishdexTheme.textTertiary),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -153,20 +173,15 @@ class _CatchTile extends StatelessWidget {
   }
 
   Widget _buildThumbnail() {
-    // 1. Image uploadée (base64)
     if (catch_.imageBase64 != null && catch_.imageBase64!.isNotEmpty) {
       try {
         final bytes = base64Decode(catch_.imageBase64!);
         return Image.memory(bytes, fit: BoxFit.cover);
       } catch (_) {}
     }
-    // 2. Photo Wikipedia de l'espèce
     if (catch_.fishImageUrl != null) {
-      return Image.network(
-        catch_.fishImageUrl!,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _fallback(),
-      );
+      return Image.network(catch_.fishImageUrl!, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _fallback());
     }
     return _fallback();
   }
@@ -188,7 +203,7 @@ class _CatchTile extends StatelessWidget {
   String _formatDate(DateTime d) {
     final now = DateTime.now();
     final diff = now.difference(d);
-    if (diff.inDays == 0) return 'Aujourd\'hui';
+    if (diff.inDays == 0) return "Aujourd'hui";
     if (diff.inDays == 1) return 'Hier';
     return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
   }
@@ -214,8 +229,7 @@ class _CatchTile extends StatelessWidget {
               ),
             ],
           ),
-        ) ??
-        false;
+        ) ?? false;
   }
 }
 
@@ -234,10 +248,10 @@ class _EmptyState extends StatelessWidget {
           child: const Center(child: Text('🎣', style: TextStyle(fontSize: 50))),
         ),
         const SizedBox(height: 20),
-        const Text('Aucune prise pour l\'instant',
+        const Text("Aucune prise pour l'instant",
           style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
-        const Text('Utilise le scanner pour identifier\nun poisson et l\'ajouter ici',
+        const Text("Utilise le scanner pour identifier\nun poisson et l'ajouter ici",
           style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14),
           textAlign: TextAlign.center),
       ],

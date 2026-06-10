@@ -8,9 +8,14 @@ class FishCatch {
   final String family;
   final double confidence;
   final List<Map<String, dynamic>> top5;
-  final String? imageBase64;   // JPEG bytes encodés base64
-  final String? fishImageUrl;  // URL photo Wikipedia de l'espèce
+  final String? imageBase64;
+  final String? fishImageUrl;
   final DateTime timestamp;
+  // Champs optionnels
+  final double? sizecm;
+  final double? weightkg;
+  final String? location;
+  final String? notes;
 
   const FishCatch({
     this.id,
@@ -23,7 +28,33 @@ class FishCatch {
     this.imageBase64,
     this.fishImageUrl,
     required this.timestamp,
+    this.sizecm,
+    this.weightkg,
+    this.location,
+    this.notes,
   });
+
+  FishCatch copyWith({
+    double? sizecm,
+    double? weightkg,
+    String? location,
+    String? notes,
+  }) => FishCatch(
+    id: id,
+    userId: userId,
+    species: species,
+    frenchName: frenchName,
+    family: family,
+    confidence: confidence,
+    top5: top5,
+    imageBase64: imageBase64,
+    fishImageUrl: fishImageUrl,
+    timestamp: timestamp,
+    sizecm: sizecm ?? this.sizecm,
+    weightkg: weightkg ?? this.weightkg,
+    location: location ?? this.location,
+    notes: notes ?? this.notes,
+  );
 
   Map<String, dynamic> toFirestore() => {
     'userId':       userId,
@@ -35,6 +66,10 @@ class FishCatch {
     'imageBase64':  imageBase64,
     'fishImageUrl': fishImageUrl,
     'timestamp':    Timestamp.fromDate(timestamp),
+    if (sizecm != null)   'sizecm':   sizecm,
+    if (weightkg != null) 'weightkg': weightkg,
+    if (location != null) 'location': location,
+    if (notes != null)    'notes':    notes,
   };
 
   factory FishCatch.fromFirestore(String id, Map<String, dynamic> d) => FishCatch(
@@ -50,5 +85,9 @@ class FishCatch {
     imageBase64:  d['imageBase64'] as String?,
     fishImageUrl: d['fishImageUrl'] as String?,
     timestamp:    (d['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    sizecm:       (d['sizecm'] as num?)?.toDouble(),
+    weightkg:     (d['weightkg'] as num?)?.toDouble(),
+    location:     d['location'] as String?,
+    notes:        d['notes'] as String?,
   );
 }
