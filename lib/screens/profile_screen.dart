@@ -46,72 +46,93 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildProfileHeader() {
     return Container(
-      height: 280,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [FishdexTheme.waterSurface, FishdexTheme.deepOcean],
-        ),
-      ),
+      padding: const EdgeInsets.only(bottom: 24),
       child: Stack(
         children: [
-          // Decorative circles
+          // Fond subtil
+          Container(
+            height: 260,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFDCEEFB), Color(0xFFF0F6FF)],
+              ),
+            ),
+          ),
+          // Cercles décoratifs
           Positioned(
-            top: -30,
-            left: -30,
+            top: -50,
+            right: -50,
             child: Container(
-              width: 160,
-              height: 160,
+              width: 200,
+              height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: FishdexTheme.bioluminescent.withOpacity(0.08),
+                color: FishdexTheme.primary.withOpacity(0.06),
               ),
             ),
           ),
           SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const SizedBox(width: 48),
-                    const Text(
-                      'Mon Profil',
-                      style: TextStyle(
-                        color: FishdexTheme.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const SizedBox(width: 40),
+                      const Text(
+                        'Mon Profil',
+                        style: TextStyle(
+                          color: FishdexTheme.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(CupertinoIcons.settings,
-                          color: FishdexTheme.textPrimary),
-                      onPressed: () {},
-                    ),
-                  ],
+                      GestureDetector(
+                        onTap: () {},
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.7),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(CupertinoIcons.settings,
+                              color: FishdexTheme.textPrimary, size: 18),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
                 // Avatar
                 Stack(
                   children: [
                     Container(
-                      width: 88,
-                      height: 88,
+                      width: 90,
+                      height: 90,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: const LinearGradient(
-                          colors: [
-                            FishdexTheme.bioluminescent,
-                            FishdexTheme.seafoam
-                          ],
+                          colors: [FishdexTheme.primary, Color(0xFF00C6E0)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: FishdexTheme.bioluminescent.withOpacity(0.4),
+                            color: FishdexTheme.primary.withOpacity(0.30),
                             blurRadius: 20,
-                            spreadRadius: 2,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
@@ -127,28 +148,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         height: 26,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: FishdexTheme.goldenScales,
-                          border: Border.all(
-                              color: FishdexTheme.deepOcean, width: 2),
+                          color: FishdexTheme.golden,
+                          border: Border.all(color: Colors.white, width: 2),
                         ),
                         child: const Center(
                           child: Text('12',
                               style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
-                                  color: FishdexTheme.deepOcean)),
+                                  color: Colors.white)),
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 const Text(
                   'Alex Pêcheur',
                   style: TextStyle(
                     color: FishdexTheme.textPrimary,
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
+                    letterSpacing: -0.4,
                   ),
                 ),
                 const Text(
@@ -156,7 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                       color: FishdexTheme.textSecondary, fontSize: 13),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -164,14 +185,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Container(
                         width: 1,
                         height: 24,
-                        color: FishdexTheme.glassBorder,
-                        margin: const EdgeInsets.symmetric(horizontal: 20)),
+                        color: Colors.black.withOpacity(0.08),
+                        margin: const EdgeInsets.symmetric(horizontal: 24)),
                     _followStat('234', 'Abonnements'),
                     Container(
                         width: 1,
                         height: 24,
-                        color: FishdexTheme.glassBorder,
-                        margin: const EdgeInsets.symmetric(horizontal: 20)),
+                        color: Colors.black.withOpacity(0.08),
+                        margin: const EdgeInsets.symmetric(horizontal: 24)),
                     _followStat('67', 'Espèces'),
                   ],
                 ),
@@ -200,14 +221,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildStats() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Row(
         children: [
-          _statCard('127', 'Prises', '🎣', FishdexTheme.bioluminescent),
+          _statCard('127', 'Prises', '🎣', FishdexTheme.primary),
           const SizedBox(width: 10),
-          _statCard('8,4 kg', 'Record', '🏆', FishdexTheme.goldenScales),
+          _statCard('8,4 kg', 'Record', '🏆', FishdexTheme.golden),
           const SizedBox(width: 10),
-          _statCard('67/200', 'Dex', '📖', FishdexTheme.coralAccent),
+          _statCard('67/200', 'Dex', '📖', FishdexTheme.coral),
         ],
       ),
     );
@@ -217,7 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Expanded(
       child: GlassCard(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
             children: [
               Text(icon, style: const TextStyle(fontSize: 22)),
@@ -241,6 +262,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
       child: GlassCard(
+        radius: 18,
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: Row(
@@ -264,15 +286,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            color: selected ? FishdexTheme.bioluminescent : Colors.transparent,
+            color: selected ? FishdexTheme.primary : Colors.transparent,
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: FishdexTheme.primary.withOpacity(0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
           ),
           child: Center(
             child: Text(
               label,
               style: TextStyle(
-                color: selected
-                    ? FishdexTheme.deepOcean
-                    : FishdexTheme.textSecondary,
+                color: selected ? Colors.white : FishdexTheme.textSecondary,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
                 fontSize: 14,
               ),
@@ -284,82 +313,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildCollectionGrid() {
-    return SliverGrid(
-      delegate: SliverChildBuilderDelegate(
-            (context, i) {
-          final fish = _collection[i];
-          final locked = fish.name == '???';
-          return Padding(
-            padding: const EdgeInsets.all(4),
-            child: GlassCard(
-              borderColor: fish.isRare
-                  ? FishdexTheme.goldenScales.withOpacity(0.4)
-                  : null,
-              child: Stack(
-                children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        locked ? '❓' : fish.emoji,
-                        style: TextStyle(
-                            fontSize: 34,
-                            color: locked ? null : null),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        fish.name,
-                        style: TextStyle(
-                          color: locked
-                              ? FishdexTheme.textSecondary.withOpacity(0.4)
-                              : FishdexTheme.textPrimary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      if (!locked && fish.stars > 0)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(
-                            fish.stars,
-                                (_) => const Icon(CupertinoIcons.star_fill,
-                                color: FishdexTheme.goldenScales, size: 8),
-                          ),
-                        ),
-                    ],
-                  ),
-                  if (fish.isRare && !locked)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: FishdexTheme.goldenScales.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text('★',
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      sliver: SliverGrid(
+        delegate: SliverChildBuilderDelegate(
+          (context, i) {
+            final fish = _collection[i];
+            final locked = fish.name == '???';
+            return Padding(
+              padding: const EdgeInsets.all(4),
+              child: GlassCard(
+                radius: 18,
+                borderColor: fish.isRare
+                    ? FishdexTheme.golden.withOpacity(0.4)
+                    : null,
+                child: Stack(
+                  children: [
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            locked ? '❓' : fish.emoji,
                             style: TextStyle(
-                                color: FishdexTheme.goldenScales, fontSize: 10)),
+                                fontSize: 32,
+                                color: locked ? null : null),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            fish.name,
+                            style: TextStyle(
+                              color: locked
+                                  ? FishdexTheme.textTertiary
+                                  : FishdexTheme.textPrimary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          if (!locked && fish.stars > 0)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(
+                                fish.stars,
+                                (_) => const Icon(CupertinoIcons.star_fill,
+                                    color: FishdexTheme.golden, size: 8),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                ],
+                    if (fish.isRare && !locked)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: FishdexTheme.golden.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('★',
+                              style: TextStyle(
+                                  color: FishdexTheme.golden, fontSize: 10)),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          )
-              .animate()
-              .fadeIn(delay: Duration(milliseconds: 40 * i))
-              .scale(begin: const Offset(0.85, 0.85));
-        },
-        childCount: _collection.length,
-      ),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: 4,
-        crossAxisSpacing: 4,
-        childAspectRatio: 0.85,
+            )
+                .animate()
+                .fadeIn(delay: Duration(milliseconds: 40 * i))
+                .scale(begin: const Offset(0.88, 0.88));
+          },
+          childCount: _collection.length,
+        ),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          mainAxisSpacing: 4,
+          crossAxisSpacing: 4,
+          childAspectRatio: 0.85,
+        ),
       ),
     );
   }
@@ -373,31 +408,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _Achievement('Maître Carpe', 'Record de taille', '🐡', false),
     ];
     return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate(
-              (context, i) => Padding(
+          (context, i) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: GlassCard(
               borderColor: achievements[i].unlocked
-                  ? FishdexTheme.goldenScales.withOpacity(0.3)
+                  ? FishdexTheme.golden.withOpacity(0.3)
                   : null,
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Row(
                   children: [
                     Container(
-                      width: 48,
-                      height: 48,
+                      width: 50,
+                      height: 50,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: achievements[i].unlocked
-                            ? FishdexTheme.goldenScales.withOpacity(0.15)
-                            : FishdexTheme.waterSurface.withOpacity(0.3),
+                            ? FishdexTheme.golden.withOpacity(0.12)
+                            : Colors.black.withOpacity(0.04),
                       ),
                       child: Center(
                         child: Text(
-                          achievements[i].unlocked ? achievements[i].emoji : '🔒',
+                          achievements[i].unlocked
+                              ? achievements[i].emoji
+                              : '🔒',
                           style: const TextStyle(fontSize: 24),
                         ),
                       ),
@@ -428,7 +465,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     if (achievements[i].unlocked)
                       const Icon(CupertinoIcons.checkmark_circle_fill,
-                          color: FishdexTheme.goldenScales, size: 20),
+                          color: FishdexTheme.golden, size: 20),
                   ],
                 ),
               ),

@@ -11,8 +11,8 @@ import 'screens/profile_screen.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarBrightness: Brightness.dark,
-    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.light,
+    statusBarIconBrightness: Brightness.dark,
     systemNavigationBarColor: Colors.transparent,
   ));
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -58,9 +58,9 @@ class _FishdexShellState extends State<FishdexShell>
     super.initState();
     _pageControllers = List.generate(
       5,
-          (i) => AnimationController(
+      (i) => AnimationController(
         vsync: this,
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 280),
         value: i == 0 ? 1.0 : 0.0,
       ),
     );
@@ -85,24 +85,25 @@ class _FishdexShellState extends State<FishdexShell>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FishdexTheme.abyss,
+      backgroundColor: FishdexTheme.background,
       extendBody: true,
       body: Stack(
         children: [
-          // Ambient ocean background
+          // Fond blanc épuré avec légère nuance d'eau
           Container(
             decoration: const BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(0, -0.4),
-                radius: 1.2,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [
-                  Color(0xFF0D2A4A),
-                  FishdexTheme.abyss,
+                  Color(0xFFEBF5FF),
+                  Color(0xFFF8FAFF),
+                  Color(0xFFF0F8F5),
                 ],
               ),
             ),
           ),
-          // Page stack with fade transitions
+          // Page stack
           ...List.generate(_screens.length, (i) {
             return AnimatedBuilder(
               animation: _pageControllers[i],
@@ -116,7 +117,7 @@ class _FishdexShellState extends State<FishdexShell>
                   child: IgnorePointer(
                     ignoring: i != _currentIndex,
                     child: Transform.translate(
-                      offset: Offset(0, (1 - anim.value) * 20),
+                      offset: Offset(0, (1 - anim.value) * 16),
                       child: child,
                     ),
                   ),

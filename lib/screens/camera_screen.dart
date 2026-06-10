@@ -1,8 +1,9 @@
+import 'dart:io';
 import 'dart:ui';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:image_picker/image_picker.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 
@@ -17,8 +18,12 @@ class _CameraScreenState extends State<CameraScreen>
     with TickerProviderStateMixin {
   late AnimationController _scanController;
   late AnimationController _pulseController;
+
   bool _isScanning = false;
   bool _identified = false;
+  File? _selectedImage;
+
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -40,6 +45,34 @@ class _CameraScreenState extends State<CameraScreen>
     super.dispose();
   }
 
+  Future<void> _pickFromCamera() async {
+    final XFile? file = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 90,
+    );
+    if (file != null && mounted) {
+      setState(() {
+        _selectedImage = File(file.path);
+        _identified = false;
+      });
+      _startIdentification();
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    final XFile? file = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
+    if (file != null && mounted) {
+      setState(() {
+        _selectedImage = File(file.path);
+        _identified = false;
+      });
+      _startIdentification();
+    }
+  }
+
   void _startIdentification() {
     setState(() {
       _isScanning = true;
@@ -55,42 +88,104 @@ class _CameraScreenState extends State<CameraScreen>
     });
   }
 
+  void _reset() {
+    setState(() {
+      _selectedImage = null;
+      _identified = false;
+      _isScanning = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FishdexTheme.abyss,
+      backgroundColor: FishdexTheme.background,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Simulated camera view
+          // Fond clair avec légère nuance
           Container(
             decoration: const BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.center,
-                radius: 1,
-                colors: [
-                  Color(0xFF0D2440),
-                  FishdexTheme.abyss,
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFE8F4FF), Color(0xFFF5FAFF)],
+              ),
+            ),
+          ),
+
+          // Zone de preview — image ou placeholder
+          if (_selectedImage != null)
+            Positioned.fill(
+              bottom: _identified ? 320 : 220,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(28)),
+                child: Image.file(
+                  _selectedImage!,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            )
+          else
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 220,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 60),
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: FishdexTheme.primary.withOpacity(0.08),
+                    ),
+                    child: const Center(
+                      child: Text('🐟', style: TextStyle(fontSize: 60)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Identifier un poisson',
+                    style: TextStyle(
+                      color: FishdexTheme.textPrimary,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Photo ou galerie · reconnaissance IA',
+                    style: TextStyle(
+                      color: FishdexTheme.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
                 ],
               ),
             ),
-            child: const Center(
-              child: Text('🐟', style: TextStyle(fontSize: 100)),
-            ),
-          ),
-          // Scan overlay
-          if (_isScanning)
-            AnimatedBuilder(
-              animation: _scanController,
-              builder: (ctx, child) {
-                return CustomPaint(
+
+          // Animation de scan sur l'image
+          if (_isScanning && _selectedImage != null)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 220,
+              child: AnimatedBuilder(
+                animation: _scanController,
+                builder: (ctx, _) => CustomPaint(
                   painter: _ScanPainter(_scanController.value),
-                );
-              },
+                ),
+              ),
             ),
-          // Corner frame
-          _buildCameraFrame(),
-          // Top bar
+
+          // Barre du haut
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -98,13 +193,15 @@ class _CameraScreenState extends State<CameraScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   GlassCard(
+                    blur: 20,
+                    radius: 16,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                          horizontal: 14, vertical: 9),
                       child: Row(
                         children: [
-                          const Icon(CupertinoIcons.camera_fill,
-                              color: FishdexTheme.bioluminescent, size: 16),
+                          Icon(CupertinoIcons.viewfinder,
+                              color: FishdexTheme.primary, size: 16),
                           const SizedBox(width: 6),
                           const Text(
                             'Scanner',
@@ -118,181 +215,280 @@ class _CameraScreenState extends State<CameraScreen>
                       ),
                     ),
                   ),
-                  Row(
-                    children: [
-                      _topButton(CupertinoIcons.bolt_slash, () {}),
-                      const SizedBox(width: 8),
-                      _topButton(CupertinoIcons.photo_on_rectangle, () {}),
-                    ],
-                  ),
+                  if (_selectedImage != null)
+                    GestureDetector(
+                      onTap: _reset,
+                      child: GlassCard(
+                        blur: 20,
+                        radius: 16,
+                        child: const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: Icon(CupertinoIcons.xmark,
+                              color: FishdexTheme.textPrimary, size: 18),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
-          // Bottom panel
+
+          // Panel du bas
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
-            child: _identified ? _buildResultPanel() : _buildScanPanel(),
+            child: _identified
+                ? _buildResultPanel()
+                : _isScanning
+                    ? _buildScanningPanel()
+                    : _buildPickerPanel(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCameraFrame() {
-    return AnimatedBuilder(
-      animation: _pulseController,
-      builder: (ctx, child) {
-        final opacity = 0.4 + _pulseController.value * 0.4;
-        return CustomPaint(
-          painter: _FramePainter(
-            FishdexTheme.bioluminescent.withOpacity(opacity),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _topButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: GlassCard(
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Icon(icon, color: FishdexTheme.textPrimary, size: 20),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScanPanel() {
+  Widget _buildPickerPanel() {
     return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 48),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                FishdexTheme.waterSurface.withOpacity(0.8),
-                FishdexTheme.deepOcean.withOpacity(0.9),
+                Colors.white.withOpacity(0.88),
+                Colors.white.withOpacity(0.72),
               ],
             ),
-            border: const Border(
-              top: BorderSide(color: FishdexTheme.glassBorder, width: 0.5),
+            border: Border(
+              top: BorderSide(color: Colors.white.withOpacity(0.9), width: 1),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 32,
+                offset: const Offset(0, -8),
+              ),
+            ],
           ),
           child: Column(
             children: [
               Container(
-                width: 40,
+                width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: FishdexTheme.textSecondary.withOpacity(0.4),
+                  color: FishdexTheme.textTertiary.withOpacity(0.5),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(height: 20),
-              const Text(
-                'Identifier un poisson',
-                style: TextStyle(
-                  color: FishdexTheme.textPrimary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Pointez votre caméra vers le poisson',
-                style: TextStyle(
-                    color: FishdexTheme.textSecondary, fontSize: 14),
-              ),
               const SizedBox(height: 24),
+              // Bouton principal — Appareil photo
               GestureDetector(
-                onTap: _startIdentification,
+                onTap: _pickFromCamera,
                 child: AnimatedBuilder(
                   animation: _pulseController,
                   builder: (ctx, child) {
                     return Container(
-                      width: 72,
-                      height: 72,
+                      width: double.infinity,
+                      height: 64,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(20),
                         gradient: const LinearGradient(
-                          colors: [
-                            FishdexTheme.bioluminescent,
-                            FishdexTheme.seafoam
-                          ],
+                          colors: [FishdexTheme.primary, Color(0xFF00B4D8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: FishdexTheme.bioluminescent.withOpacity(
-                                0.3 + _pulseController.value * 0.3),
-                            blurRadius: 20 + _pulseController.value * 10,
-                            spreadRadius: 4,
+                            color: FishdexTheme.primary.withOpacity(
+                                0.28 + _pulseController.value * 0.14),
+                            blurRadius: 18 + _pulseController.value * 6,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        CupertinoIcons.camera_fill,
-                        color: FishdexTheme.deepOcean,
-                        size: 30,
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(CupertinoIcons.camera_fill,
+                              color: Colors.white, size: 22),
+                          SizedBox(width: 10),
+                          Text(
+                            'Prendre une photo',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   },
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Bouton secondaire — Galerie
+              GestureDetector(
+                onTap: _pickFromGallery,
+                child: Container(
+                  width: double.infinity,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    color: FishdexTheme.primary.withOpacity(0.08),
+                    border: Border.all(
+                      color: FishdexTheme.primary.withOpacity(0.18),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(CupertinoIcons.photo_on_rectangle,
+                          color: FishdexTheme.primary, size: 20),
+                      SizedBox(width: 10),
+                      Text(
+                        'Importer depuis la galerie',
+                        style: TextStyle(
+                          color: FishdexTheme.primary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
-    ).animate().slideY(begin: 1, end: 0, curve: Curves.easeOut);
+    ).animate().slideY(begin: 1, end: 0, curve: Curves.easeOutCubic);
+  }
+
+  Widget _buildScanningPanel() {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.88),
+                Colors.white.withOpacity(0.72),
+              ],
+            ),
+            border: Border(
+              top: BorderSide(color: Colors.white.withOpacity(0.9), width: 1),
+            ),
+          ),
+          child: Column(
+            children: [
+              AnimatedBuilder(
+                animation: _pulseController,
+                builder: (ctx, _) => Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: FishdexTheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Analyse en cours…',
+                      style: TextStyle(
+                        color: FishdexTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Identification de l\'espèce par IA',
+                style: TextStyle(
+                    color: FishdexTheme.textSecondary, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildResultPanel() {
     return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 48),
           decoration: BoxDecoration(
             gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
               colors: [
-                FishdexTheme.waterSurface.withOpacity(0.9),
-                FishdexTheme.deepOcean.withOpacity(0.95),
+                Colors.white.withOpacity(0.90),
+                Colors.white.withOpacity(0.75),
               ],
             ),
-            border: const Border(
-              top: BorderSide(color: FishdexTheme.glassBorder, width: 0.5),
+            border: Border(
+              top: BorderSide(color: Colors.white.withOpacity(0.9), width: 1),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 32,
+                offset: const Offset(0, -8),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: FishdexTheme.textTertiary.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Badge identifié
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: FishdexTheme.seafoam.withOpacity(0.15),
+                      color: FishdexTheme.mint.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: FishdexTheme.mint.withOpacity(0.25)),
                     ),
                     child: const Row(
                       children: [
                         Icon(CupertinoIcons.checkmark_circle_fill,
-                            color: FishdexTheme.seafoam, size: 14),
-                        SizedBox(width: 4),
+                            color: FishdexTheme.mint, size: 14),
+                        SizedBox(width: 5),
                         Text(
-                          'Identifié — 97%',
+                          'Identifié — 97% de confiance',
                           style: TextStyle(
-                            color: FishdexTheme.seafoam,
+                            color: FishdexTheme.mint,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -302,11 +498,21 @@ class _CameraScreenState extends State<CameraScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
+              // Résultat
               Row(
                 children: [
-                  const Text('🐟', style: TextStyle(fontSize: 50)),
-                  const SizedBox(width: 14),
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      color: FishdexTheme.primary.withOpacity(0.08),
+                    ),
+                    child: const Center(
+                        child: Text('🐟', style: TextStyle(fontSize: 40))),
+                  ),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,6 +523,7 @@ class _CameraScreenState extends State<CameraScreen>
                             color: FishdexTheme.textPrimary,
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
+                            letterSpacing: -0.4,
                           ),
                         ),
                         const Text(
@@ -328,8 +535,13 @@ class _CameraScreenState extends State<CameraScreen>
                           ),
                         ),
                         const SizedBox(height: 6),
-                        _statRow('Taille moy.', '60–90 cm'),
-                        _statRow('Poids moy.', '2–8 kg'),
+                        Row(
+                          children: [
+                            _statChip('60–90 cm', CupertinoIcons.arrow_left_right),
+                            const SizedBox(width: 8),
+                            _statChip('2–8 kg', CupertinoIcons.chart_bar),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -342,34 +554,39 @@ class _CameraScreenState extends State<CameraScreen>
                     child: GestureDetector(
                       onTap: () {},
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        height: 54,
                         decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
                           gradient: const LinearGradient(
-                            colors: [
-                              FishdexTheme.bioluminescent,
-                              FishdexTheme.seafoam
-                            ],
+                            colors: [FishdexTheme.primary, Color(0xFF00B4D8)],
                           ),
-                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: FishdexTheme.primary.withOpacity(0.25),
+                              blurRadius: 14,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
                         ),
                         child: const Center(
                           child: Text(
                             '+ Ajouter à mon Fishdex',
                             style: TextStyle(
-                              color: FishdexTheme.deepOcean,
+                              color: Colors.white,
                               fontWeight: FontWeight.w700,
-                              fontSize: 14,
+                              fontSize: 15,
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   GlassCard(
-                    child: Padding(
-                      padding: const EdgeInsets.all(13),
-                      child: const Icon(CupertinoIcons.share,
+                    radius: 16,
+                    child: const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: Icon(CupertinoIcons.share,
                           color: FishdexTheme.textPrimary, size: 20),
                     ),
                   ),
@@ -382,18 +599,28 @@ class _CameraScreenState extends State<CameraScreen>
     ).animate().slideY(begin: 1, end: 0, curve: Curves.elasticOut);
   }
 
-  Widget _statRow(String label, String value) {
-    return Row(
-      children: [
-        Text('$label: ',
-            style: const TextStyle(
-                color: FishdexTheme.textSecondary, fontSize: 12)),
-        Text(value,
-            style: const TextStyle(
-                color: FishdexTheme.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600)),
-      ],
+  Widget _statChip(String label, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: FishdexTheme.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: FishdexTheme.primary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: FishdexTheme.primary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -409,7 +636,7 @@ class _ScanPainter extends CustomPainter {
       ..shader = LinearGradient(
         colors: [
           Colors.transparent,
-          FishdexTheme.bioluminescent.withOpacity(0.6),
+          FishdexTheme.primary.withOpacity(0.5),
           Colors.transparent,
         ],
         begin: Alignment.topCenter,
@@ -420,47 +647,4 @@ class _ScanPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ScanPainter old) => old.t != t;
-}
-
-class _FramePainter extends CustomPainter {
-  final Color color;
-  _FramePainter(this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    const margin = 60.0;
-    const cornerLen = 30.0;
-    final rect = Rect.fromLTWH(
-        margin, size.height * 0.2, size.width - margin * 2, size.height * 0.5);
-
-    // Top-left
-    canvas.drawLine(
-        Offset(rect.left, rect.top + cornerLen), Offset(rect.left, rect.top), paint);
-    canvas.drawLine(
-        Offset(rect.left, rect.top), Offset(rect.left + cornerLen, rect.top), paint);
-    // Top-right
-    canvas.drawLine(
-        Offset(rect.right - cornerLen, rect.top), Offset(rect.right, rect.top), paint);
-    canvas.drawLine(
-        Offset(rect.right, rect.top), Offset(rect.right, rect.top + cornerLen), paint);
-    // Bottom-left
-    canvas.drawLine(
-        Offset(rect.left, rect.bottom - cornerLen), Offset(rect.left, rect.bottom), paint);
-    canvas.drawLine(
-        Offset(rect.left, rect.bottom), Offset(rect.left + cornerLen, rect.bottom), paint);
-    // Bottom-right
-    canvas.drawLine(
-        Offset(rect.right - cornerLen, rect.bottom), Offset(rect.right, rect.bottom), paint);
-    canvas.drawLine(
-        Offset(rect.right, rect.bottom), Offset(rect.right, rect.bottom - cornerLen), paint);
-  }
-
-  @override
-  bool shouldRepaint(_FramePainter old) => old.color != color;
 }

@@ -23,7 +23,8 @@ class MessagesScreen extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverAppBar(
-          backgroundColor: FishdexTheme.abyss,
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
           pinned: true,
           title: const Text(
             'Messages',
@@ -35,7 +36,7 @@ class MessagesScreen extends StatelessWidget {
           actions: [
             IconButton(
               icon: const Icon(CupertinoIcons.square_pencil,
-                  color: FishdexTheme.bioluminescent),
+                  color: FishdexTheme.primary),
               onPressed: () {},
             ),
           ],
@@ -50,9 +51,9 @@ class MessagesScreen extends StatelessWidget {
                   child: Container(
                     height: 42,
                     decoration: BoxDecoration(
-                      color: FishdexTheme.waterSurface.withOpacity(0.4),
+                      color: Colors.white.withOpacity(0.7),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: FishdexTheme.glassBorder),
+                      border: Border.all(color: Colors.black.withOpacity(0.06)),
                     ),
                     child: const Row(
                       children: [
@@ -103,8 +104,8 @@ class MessagesScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
                         colors: [
-                          FishdexTheme.waterSurface,
-                          FishdexTheme.bioluminescent.withOpacity(0.3),
+                          FishdexTheme.primary.withOpacity(0.15),
+                          FishdexTheme.primary.withOpacity(0.05),
                         ],
                       ),
                     ),
@@ -128,13 +129,13 @@ class MessagesScreen extends StatelessWidget {
                         height: 18,
                         decoration: const BoxDecoration(
                           shape: BoxShape.circle,
-                          color: FishdexTheme.bioluminescent,
+                          color: FishdexTheme.primary,
                         ),
                         child: Center(
                           child: Text(
                             '${c.unread}',
                             style: const TextStyle(
-                              color: FishdexTheme.deepOcean,
+                              color: Colors.white,
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                             ),
@@ -166,7 +167,7 @@ class MessagesScreen extends StatelessWidget {
                           c.time,
                           style: TextStyle(
                             color: c.unread > 0
-                                ? FishdexTheme.bioluminescent
+                                ? FishdexTheme.primary
                                 : FishdexTheme.textSecondary,
                             fontSize: 12,
                           ),

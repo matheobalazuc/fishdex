@@ -1,11 +1,11 @@
 {
-    "name": "fishdex",
-    "short_name": "fishdex",
+    "name": "Fishdex",
+    "short_name": "Fishdex",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "Fishdex App",
+    "background_color": "#F0F6FF",
+    "theme_color": "#0094C6",
+    "description": "Le Strava de la pêche — identifiez, collectionnez, partagez",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

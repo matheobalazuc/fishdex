@@ -31,20 +31,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverAppBar(
-          backgroundColor: FishdexTheme.abyss,
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
           pinned: true,
-          expandedHeight: 120,
-          flexibleSpace: FlexibleSpaceBar(
-            background: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [FishdexTheme.waterSurface, FishdexTheme.abyss],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
-          ),
           title: const Text(
             'Marché',
             style: TextStyle(
@@ -107,19 +96,19 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 color: selected
-                    ? FishdexTheme.bioluminescent
-                    : FishdexTheme.waterSurface.withOpacity(0.4),
+                    ? FishdexTheme.primary
+                    : Colors.white.withOpacity(0.7),
                 border: Border.all(
                   color: selected
-                      ? FishdexTheme.bioluminescent
-                      : FishdexTheme.glassBorder,
-                  width: 0.5,
+                      ? FishdexTheme.primary
+                      : Colors.black.withOpacity(0.08),
+                  width: 1,
                 ),
               ),
               child: Text(
                 _categories[i],
                 style: TextStyle(
-                  color: selected ? FishdexTheme.deepOcean : FishdexTheme.textSecondary,
+                  color: selected ? Colors.white : FishdexTheme.textSecondary,
                   fontSize: 13,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
                 ),
@@ -141,12 +130,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
               decoration: BoxDecoration(
                 borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(20)),
-                gradient: LinearGradient(
-                  colors: [
-                    FishdexTheme.waterSurface,
-                    FishdexTheme.deepOcean,
-                  ],
-                ),
+                color: FishdexTheme.primary.withOpacity(0.06),
               ),
               child: Center(
                 child: Text(p.emoji, style: const TextStyle(fontSize: 56)),
@@ -175,7 +159,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                     Text(
                       p.price,
                       style: const TextStyle(
-                        color: FishdexTheme.goldenScales,
+                        color: FishdexTheme.golden,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),

@@ -16,6 +16,12 @@ class HomeScreen extends StatelessWidget {
         _buildHeader(context),
         SliverToBoxAdapter(
           child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: _buildActivityBanner(),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             child: _buildStarRankingSection(),
           ),
@@ -28,7 +34,7 @@ class HomeScreen extends StatelessWidget {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
             child: _buildHotSpots(),
           ),
         ),
@@ -39,163 +45,207 @@ class HomeScreen extends StatelessWidget {
   Widget _buildHeader(BuildContext context) {
     return SliverAppBar(
       backgroundColor: Colors.transparent,
-      expandedHeight: 200,
+      surfaceTintColor: Colors.transparent,
+      expandedHeight: 180,
       pinned: true,
+      elevation: 0,
       flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Ocean gradient background
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    FishdexTheme.waterSurface,
-                    FishdexTheme.deepOcean,
-                    FishdexTheme.abyss,
-                  ],
-                ),
-              ),
-            ),
-            // Ripple circles
-            Positioned(
-              top: -40,
-              right: -40,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: FishdexTheme.bioluminescent.withOpacity(0.15),
-                    width: 1,
+        background: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: FishdexTheme.golden.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: FishdexTheme.golden.withOpacity(0.3),
+                    ),
                   ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: -10,
-              right: -10,
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: FishdexTheme.bioluminescent.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 60, 24, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Row(
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: FishdexTheme.goldenScales.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: FishdexTheme.goldenScales.withOpacity(0.4),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              CupertinoIcons.star_fill,
-                              color: FishdexTheme.goldenScales,
-                              size: 12,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Niveau 12 — Maître Pêcheur',
-                              style: TextStyle(
-                                color: FishdexTheme.goldenScales,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                      Icon(CupertinoIcons.star_fill,
+                          color: FishdexTheme.golden, size: 12),
+                      SizedBox(width: 4),
+                      Text(
+                        'Niveau 12 — Maître Pêcheur',
+                        style: TextStyle(
+                          color: FishdexTheme.golden,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Bonjour, Alex 🎣',
-                    style: TextStyle(
-                      color: FishdexTheme.textPrimary,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Bonjour, Alex 🎣',
+                  style: TextStyle(
+                    color: FishdexTheme.textPrimary,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  '3 nouvelles prises ce mois-ci',
+                  style: TextStyle(
+                    color: FishdexTheme.textSecondary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      title: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            color: Colors.white.withOpacity(0.5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [FishdexTheme.primary, Color(0xFF00C6E0)],
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  child: const Center(
+                    child: Text('🐟', style: TextStyle(fontSize: 14)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Fishdex',
+                  style: TextStyle(
+                    color: FishdexTheme.textPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        GestureDetector(
+          onTap: () {},
+          child: Container(
+            margin: const EdgeInsets.only(right: 16),
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.7),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              CupertinoIcons.bell,
+              color: FishdexTheme.textPrimary,
+              size: 18,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActivityBanner() {
+    return GlassCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [FishdexTheme.primary, Color(0xFF00C6E0)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: const Center(child: Text('🎯', style: TextStyle(fontSize: 22))),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   const Text(
-                    '3 nouveaux poissons ce mois-ci',
+                    'Objectif hebdo',
+                    style: TextStyle(
+                      color: FishdexTheme.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: 0.65,
+                      backgroundColor: FishdexTheme.primary.withOpacity(0.12),
+                      color: FishdexTheme.primary,
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '5/8 prises · encore 3 pour le badge',
                     style: TextStyle(
                       color: FishdexTheme.textSecondary,
-                      fontSize: 14,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-      title: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: FishdexTheme.bioluminescent,
-              ),
-              child: const Center(
-                child: Text('🐟', style: TextStyle(fontSize: 16)),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Fishdex',
+            const SizedBox(width: 12),
+            Text(
+              '65%',
               style: TextStyle(
-                color: FishdexTheme.textPrimary,
-                fontSize: 18,
+                color: FishdexTheme.primary,
+                fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ],
         ),
       ),
-      actions: [
-        IconButton(
-          icon: const Icon(CupertinoIcons.bell, color: FishdexTheme.textPrimary),
-          onPressed: () {},
-        ),
-        const SizedBox(width: 8),
-      ],
-    );
+    ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1, end: 0);
   }
 
   Widget _buildStarRankingSection() {
     final topFishers = [
-      _Fisher('@leBrochet', 2847, '🎣', FishdexTheme.goldenScales, 1),
+      _Fisher('@leBrochet', 2847, '🎣', FishdexTheme.golden, 1),
       _Fisher('@mariePêche', 2561, '🐟', FishdexTheme.textSecondary, 2),
-      _Fisher('@surfcaster33', 2340, '🎣', FishdexTheme.coralAccent, 3),
+      _Fisher('@surfcaster33', 2340, '🎣', FishdexTheme.coral, 3),
     ];
 
     return Column(
@@ -210,15 +260,17 @@ class HomeScreen extends StatelessWidget {
                 color: FishdexTheme.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
               ),
             ),
-            TextButton(
-              onPressed: () {},
-              child: const Text(
+            GestureDetector(
+              onTap: () {},
+              child: Text(
                 'Voir tout',
                 style: TextStyle(
-                  color: FishdexTheme.bioluminescent,
-                  fontSize: 13,
+                  color: FishdexTheme.primary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -239,9 +291,9 @@ class HomeScreen extends StatelessWidget {
                       height: 36,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: fisher.color.withOpacity(0.15),
+                        color: fisher.color.withOpacity(0.12),
                         border: Border.all(
-                            color: fisher.color.withOpacity(0.4), width: 1.5),
+                            color: fisher.color.withOpacity(0.3), width: 1.5),
                       ),
                       child: Center(
                         child: Text(
@@ -272,7 +324,7 @@ class HomeScreen extends StatelessWidget {
                           Row(
                             children: [
                               const Icon(CupertinoIcons.star_fill,
-                                  color: FishdexTheme.goldenScales, size: 11),
+                                  color: FishdexTheme.golden, size: 11),
                               const SizedBox(width: 3),
                               Text(
                                 '${fisher.score} pts',
@@ -288,15 +340,18 @@ class HomeScreen extends StatelessWidget {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: FishdexTheme.bioluminescent.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        color: FishdexTheme.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: FishdexTheme.primary.withOpacity(0.15),
+                        ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Suivre',
                         style: TextStyle(
-                          color: FishdexTheme.bioluminescent,
+                          color: FishdexTheme.primary,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -308,8 +363,8 @@ class HomeScreen extends StatelessWidget {
             ),
           )
               .animate()
-              .fadeIn(delay: Duration(milliseconds: 100 * e.key))
-              .slideX(begin: 0.1, end: 0);
+              .fadeIn(delay: Duration(milliseconds: 80 * e.key))
+              .slideX(begin: 0.08, end: 0);
         }),
       ],
     );
@@ -325,19 +380,20 @@ class HomeScreen extends StatelessWidget {
             color: FishdexTheme.textPrimary,
             fontSize: 20,
             fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
           ),
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 160,
+          height: 150,
           child: ListView(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             children: [
-              _buildCatchCard('🐟', 'Brochet', '4.2 kg', 'Il y a 2h'),
-              _buildCatchCard('🦈', 'Bar', '2.8 kg', 'Hier'),
-              _buildCatchCard('🐠', 'Truite', '1.5 kg', 'Il y a 2j'),
-              _buildCatchCard('🐡', 'Carpe', '6.1 kg', 'Il y a 3j'),
+              _buildCatchCard('🐟', 'Brochet', '4.2 kg', 'Il y a 2h', FishdexTheme.primary),
+              _buildCatchCard('🦈', 'Bar', '2.8 kg', 'Hier', FishdexTheme.mint),
+              _buildCatchCard('🐠', 'Truite', '1.5 kg', 'Il y a 2j', FishdexTheme.golden),
+              _buildCatchCard('🐡', 'Carpe', '6.1 kg', 'Il y a 3j', FishdexTheme.coral),
             ],
           ),
         ),
@@ -345,63 +401,44 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCatchCard(
-      String emoji, String name, String weight, String time) {
+  Widget _buildCatchCard(String emoji, String name, String weight, String time, Color accent) {
     return Container(
-      width: 130,
+      width: 120,
       margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            FishdexTheme.waterSurface.withOpacity(0.6),
-            FishdexTheme.deepOcean.withOpacity(0.8),
-          ],
-        ),
-        border: Border.all(
-          color: FishdexTheme.glassBorder,
-          width: 0.5,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(emoji, style: const TextStyle(fontSize: 40)),
-                const Spacer(),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: FishdexTheme.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+      child: GlassCard(
+        radius: 20,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 36)),
+              const Spacer(),
+              Text(
+                name,
+                style: const TextStyle(
+                  color: FishdexTheme.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  weight,
-                  style: const TextStyle(
-                    color: FishdexTheme.goldenScales,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                weight,
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
-                Text(
-                  time,
-                  style: const TextStyle(
-                    color: FishdexTheme.textSecondary,
-                    fontSize: 11,
-                  ),
+              ),
+              Text(
+                time,
+                style: const TextStyle(
+                  color: FishdexTheme.textTertiary,
+                  fontSize: 10,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -416,30 +453,30 @@ class HomeScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              '🗺️ Hot Spots',
+              'Hot Spots',
               style: TextStyle(
                 color: FishdexTheme.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: FishdexTheme.coralAccent.withOpacity(0.15),
+                color: FishdexTheme.coral.withOpacity(0.10),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: FishdexTheme.coralAccent.withOpacity(0.3)),
+                border: Border.all(color: FishdexTheme.coral.withOpacity(0.2)),
               ),
               child: const Row(
                 children: [
                   Icon(CupertinoIcons.flame_fill,
-                      color: FishdexTheme.coralAccent, size: 12),
+                      color: FishdexTheme.coral, size: 12),
                   SizedBox(width: 4),
                   Text(
                     'Actif',
                     style: TextStyle(
-                      color: FishdexTheme.coralAccent,
+                      color: FishdexTheme.coral,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -456,9 +493,9 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               children: [
                 _buildHotSpotRow('Lac de Sainte-Croix', 'Truite, Brochet', 4.8),
-                const Divider(color: FishdexTheme.glassBorder, height: 20),
+                Divider(color: Colors.black.withOpacity(0.05), height: 20),
                 _buildHotSpotRow('Étang de Berre', 'Carpe, Anguille', 4.5),
-                const Divider(color: FishdexTheme.glassBorder, height: 20),
+                Divider(color: Colors.black.withOpacity(0.05), height: 20),
                 _buildHotSpotRow('Rivière Arc', 'Sandre, Perche', 4.2),
               ],
             ),
@@ -472,11 +509,11 @@ class HomeScreen extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 40,
-          height: 40,
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            color: FishdexTheme.waterSurface,
+            borderRadius: BorderRadius.circular(12),
+            color: FishdexTheme.primary.withOpacity(0.08),
           ),
           child: const Center(child: Text('📍', style: TextStyle(fontSize: 20))),
         ),
@@ -499,12 +536,12 @@ class HomeScreen extends StatelessWidget {
         Row(
           children: [
             const Icon(CupertinoIcons.star_fill,
-                color: FishdexTheme.goldenScales, size: 12),
+                color: FishdexTheme.golden, size: 12),
             const SizedBox(width: 3),
             Text(
               rating.toString(),
               style: const TextStyle(
-                  color: FishdexTheme.goldenScales,
+                  color: FishdexTheme.golden,
                   fontSize: 13,
                   fontWeight: FontWeight.w600),
             ),
