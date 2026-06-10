@@ -91,17 +91,7 @@ class _FishdexShellState extends State<FishdexShell>
         children: [
           // Fond blanc épuré avec légère nuance d'eau
           Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFEBF5FF),
-                  Color(0xFFF8FAFF),
-                  Color(0xFFF0F8F5),
-                ],
-              ),
-            ),
+            color: Colors.white,
           ),
           // Page stack
           ...List.generate(_screens.length, (i) {

@@ -99,19 +99,13 @@ class _CameraScreenState extends State<CameraScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FishdexTheme.background,
+      backgroundColor: Colors.white,
       body: Stack(
         fit: StackFit.expand,
         children: [
           // Fond clair avec légère nuance
           Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFE8F4FF), Color(0xFFF5FAFF)],
-              ),
-            ),
+            color: Colors.white,
           ),
 
           // Zone de preview — image ou placeholder

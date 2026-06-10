@@ -50,59 +50,62 @@ class HomeScreen extends StatelessWidget {
       pinned: true,
       elevation: 0,
       flexibleSpace: FlexibleSpaceBar(
-        background: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: FishdexTheme.golden.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: FishdexTheme.golden.withOpacity(0.3),
+        background: Container(
+          color: Colors.white,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: FishdexTheme.golden.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: FishdexTheme.golden.withOpacity(0.3),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(CupertinoIcons.star_fill,
+                            color: FishdexTheme.golden, size: 12),
+                        SizedBox(width: 4),
+                        Text(
+                          'Niveau 12 — Maître Pêcheur',
+                          style: TextStyle(
+                            color: FishdexTheme.golden,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(CupertinoIcons.star_fill,
-                          color: FishdexTheme.golden, size: 12),
-                      SizedBox(width: 4),
-                      Text(
-                        'Niveau 12 — Maître Pêcheur',
-                        style: TextStyle(
-                          color: FishdexTheme.golden,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Bonjour, Alex 🎣',
+                    style: TextStyle(
+                      color: FishdexTheme.textPrimary,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.8,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Bonjour, Alex 🎣',
-                  style: TextStyle(
-                    color: FishdexTheme.textPrimary,
-                    fontSize: 30,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.8,
+                  const SizedBox(height: 2),
+                  const Text(
+                    '3 nouvelles prises ce mois-ci',
+                    style: TextStyle(
+                      color: FishdexTheme.textSecondary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  '3 nouvelles prises ce mois-ci',
-                  style: TextStyle(
-                    color: FishdexTheme.textSecondary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

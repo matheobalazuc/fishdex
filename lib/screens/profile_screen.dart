@@ -49,17 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.only(bottom: 24),
       child: Stack(
         children: [
-          // Fond subtil
-          Container(
-            height: 260,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFDCEEFB), Color(0xFFF0F6FF)],
-              ),
-            ),
-          ),
+          Container(height: 260, color: Colors.white),
           // Cercles décoratifs
           Positioned(
             top: -50,

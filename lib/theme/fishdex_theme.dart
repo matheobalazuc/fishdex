@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 class FishdexTheme {
   // Light palette — eau claire, épuré, moderne
-  static const Color background   = Color(0xFFF0F6FF);
+  static const Color background   = Color(0xFFFFFFFF);
   static const Color surface      = Colors.white;
   static const Color primary      = Color(0xFF0094C6);   // bleu pêche
   static const Color primaryDeep  = Color(0xFF005E8A);

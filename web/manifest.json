@@ -3,7 +3,7 @@
     "short_name": "Fishdex",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#F0F6FF",
+    "background_color": "#FFFFFF",
     "theme_color": "#0094C6",
     "description": "Le Strava de la pêche — identifiez, collectionnez, partagez",
     "orientation": "portrait-primary",
