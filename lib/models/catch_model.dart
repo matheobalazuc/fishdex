@@ -16,6 +16,9 @@ class FishCatch {
   final double? weightkg;
   final String? location;
   final String? notes;
+  // Publication
+  final bool isPublished;
+  final bool isPrivate;
 
   const FishCatch({
     this.id,
@@ -32,28 +35,46 @@ class FishCatch {
     this.weightkg,
     this.location,
     this.notes,
+    this.isPublished = false,
+    this.isPrivate = false,
   });
 
   FishCatch copyWith({
+    String? species,
+    String? frenchName,
+    String? family,
+    double? confidence,
+    String? imageBase64,
+    String? fishImageUrl,
     double? sizecm,
     double? weightkg,
     String? location,
     String? notes,
+    bool? isPublished,
+    bool? isPrivate,
+    // sentinels pour effacer une valeur nullable
+    bool clearImage = false,
+    bool clearSize = false,
+    bool clearWeight = false,
+    bool clearLocation = false,
+    bool clearNotes = false,
   }) => FishCatch(
     id: id,
     userId: userId,
-    species: species,
-    frenchName: frenchName,
-    family: family,
-    confidence: confidence,
-    top5: top5,
-    imageBase64: imageBase64,
-    fishImageUrl: fishImageUrl,
-    timestamp: timestamp,
-    sizecm: sizecm ?? this.sizecm,
-    weightkg: weightkg ?? this.weightkg,
-    location: location ?? this.location,
-    notes: notes ?? this.notes,
+    species:      species      ?? this.species,
+    frenchName:   frenchName   ?? this.frenchName,
+    family:       family       ?? this.family,
+    confidence:   confidence   ?? this.confidence,
+    top5:         top5,
+    imageBase64:  clearImage   ? null : (imageBase64  ?? this.imageBase64),
+    fishImageUrl: fishImageUrl ?? this.fishImageUrl,
+    timestamp:    timestamp,
+    sizecm:       clearSize    ? null : (sizecm   ?? this.sizecm),
+    weightkg:     clearWeight  ? null : (weightkg ?? this.weightkg),
+    location:     clearLocation? null : (location ?? this.location),
+    notes:        clearNotes   ? null : (notes    ?? this.notes),
+    isPublished:  isPublished  ?? this.isPublished,
+    isPrivate:    isPrivate    ?? this.isPrivate,
   );
 
   Map<String, dynamic> toFirestore() => {
@@ -66,6 +87,8 @@ class FishCatch {
     'imageBase64':  imageBase64,
     'fishImageUrl': fishImageUrl,
     'timestamp':    Timestamp.fromDate(timestamp),
+    'isPublished':  isPublished,
+    'isPrivate':    isPrivate,
     if (sizecm != null)   'sizecm':   sizecm,
     if (weightkg != null) 'weightkg': weightkg,
     if (location != null) 'location': location,
@@ -74,20 +97,22 @@ class FishCatch {
 
   factory FishCatch.fromFirestore(String id, Map<String, dynamic> d) => FishCatch(
     id:           id,
-    userId:       d['userId'] as String? ?? 'demo_user',
-    species:      d['species'] as String? ?? '',
-    frenchName:   d['frenchName'] as String? ?? '',
-    family:       d['family'] as String? ?? '',
+    userId:       d['userId']    as String? ?? 'demo_user',
+    species:      d['species']   as String? ?? '',
+    frenchName:   d['frenchName']as String? ?? '',
+    family:       d['family']    as String? ?? '',
     confidence:   (d['confidence'] as num?)?.toDouble() ?? 0,
     top5:         (d['top5'] as List<dynamic>?)
                     ?.map((e) => Map<String, dynamic>.from(e as Map))
                     .toList() ?? [],
-    imageBase64:  d['imageBase64'] as String?,
+    imageBase64:  d['imageBase64']  as String?,
     fishImageUrl: d['fishImageUrl'] as String?,
     timestamp:    (d['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    sizecm:       (d['sizecm'] as num?)?.toDouble(),
+    sizecm:       (d['sizecm']   as num?)?.toDouble(),
     weightkg:     (d['weightkg'] as num?)?.toDouble(),
-    location:     d['location'] as String?,
-    notes:        d['notes'] as String?,
+    location:     d['location']  as String?,
+    notes:        d['notes']     as String?,
+    isPublished:  d['isPublished'] as bool? ?? false,
+    isPrivate:    d['isPrivate']   as bool? ?? false,
   );
 }

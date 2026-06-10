@@ -1,9 +1,13 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../models/catch_model.dart';
+import '../services/catch_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
+import 'catch_detail_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -34,10 +38,11 @@ class HomeScreen extends StatelessWidget {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
             child: _buildHotSpots(),
           ),
         ),
+        _buildFeedSection(),
       ],
     );
   }
@@ -552,6 +557,219 @@ class HomeScreen extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+  // ── Fil des prises publiées ────────────────────────────────────────
+  Widget _buildFeedSection() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Fil des prises',
+              style: TextStyle(
+                color: FishdexTheme.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+              )),
+            const SizedBox(height: 12),
+            StreamBuilder<List<FishCatch>>(
+              stream: CatchService.feedStream(),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: CupertinoActivityIndicator(),
+                    ),
+                  );
+                }
+                final catches = snap.data ?? [];
+                if (catches.isEmpty) {
+                  return GlassCard(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          const Text('🌊', style: TextStyle(fontSize: 36)),
+                          const SizedBox(height: 8),
+                          const Text('Aucune prise publiée pour l\'instant',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+                          const SizedBox(height: 4),
+                          const Text('Va dans ta collection et publie une prise !',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                return Column(
+                  children: catches.asMap().entries.map((e) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: _FeedCard(catch_: e.value)
+                          .animate()
+                          .fadeIn(delay: Duration(milliseconds: 60 * e.key))
+                          .slideY(begin: 0.08, end: 0),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Carte fil social ──────────────────────────────────────────────────
+class _FeedCard extends StatelessWidget {
+  final FishCatch catch_;
+  const _FeedCard({required this.catch_});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: catch_)),
+      ),
+      child: GlassCard(
+        radius: 20,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Auteur + date
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [FishdexTheme.primary, Color(0xFF00C6E0)],
+                      ),
+                    ),
+                    child: const Center(child: Text('🎣', style: TextStyle(fontSize: 18))),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _authorName(catch_),
+                          style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
+                        Text(_ago(catch_.timestamp),
+                          style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: catch_.isPrivate
+                          ? FishdexTheme.golden.withOpacity(0.10)
+                          : FishdexTheme.mint.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      catch_.isPrivate ? '🔒 Privé' : '🌍 Public',
+                      style: TextStyle(
+                        color: catch_.isPrivate ? FishdexTheme.golden : FishdexTheme.mint,
+                        fontSize: 10, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
+
+            // Photo
+            if (catch_.imageBase64 != null || catch_.fishImageUrl != null)
+              ClipRRect(
+                borderRadius: BorderRadius.zero,
+                child: SizedBox(
+                  height: 200, width: double.infinity,
+                  child: _photo(),
+                ),
+              ),
+
+            // Infos
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(catch_.frenchName,
+                    style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+                  Text(catch_.species,
+                    style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      if (catch_.location != null)
+                        _chip('📍 ${catch_.location!}', FishdexTheme.primary),
+                      if (catch_.weightkg != null)
+                        _chip('⚖️ ${catch_.weightkg} kg', FishdexTheme.mint),
+                      if (catch_.sizecm != null)
+                        _chip('📏 ${catch_.sizecm} cm', FishdexTheme.coral),
+                    ],
+                  ),
+                  if (catch_.notes != null) ...[
+                    const SizedBox(height: 8),
+                    Text(catch_.notes!,
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _photo() {
+    if (catch_.imageBase64 != null && catch_.imageBase64!.isNotEmpty) {
+      try {
+        return Image.memory(base64Decode(catch_.imageBase64!), fit: BoxFit.cover, width: double.infinity);
+      } catch (_) {}
+    }
+    if (catch_.fishImageUrl != null) {
+      return Image.network(catch_.fishImageUrl!, fit: BoxFit.cover, width: double.infinity);
+    }
+    return Container(
+      color: FishdexTheme.primary.withOpacity(0.06),
+      child: const Center(child: Text('🐟', style: TextStyle(fontSize: 48))),
+    );
+  }
+
+  Widget _chip(String label, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    decoration: BoxDecoration(color: color.withOpacity(0.10), borderRadius: BorderRadius.circular(8)),
+    child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+  );
+
+  String _authorName(FishCatch c) =>
+      c.userId == CatchService.userId ? CatchService.userName : c.userId;
+
+  String _ago(DateTime d) {
+    final diff = DateTime.now().difference(d);
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24)   return 'Il y a ${diff.inHours}h';
+    if (diff.inDays < 7)     return 'Il y a ${diff.inDays}j';
+    const m = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+    return '${d.day} ${m[d.month - 1]}';
   }
 }
 

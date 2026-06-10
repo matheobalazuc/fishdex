@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart';
 import '../models/catch_model.dart';
 import '../services/catch_service.dart';
 import '../theme/fishdex_theme.dart';
@@ -14,57 +16,147 @@ class CatchDetailScreen extends StatefulWidget {
 }
 
 class _CatchDetailScreenState extends State<CatchDetailScreen> {
-  late FishCatch _catch;
-  bool _editing = false;
-  bool _saving = false;
+  late FishCatch _c;
+  bool _editMode = false;
+  bool _saving   = false;
 
-  final _sizeCtrl   = TextEditingController();
-  final _weightCtrl = TextEditingController();
-  final _locCtrl    = TextEditingController();
-  final _notesCtrl  = TextEditingController();
+  // controllers édition
+  late TextEditingController _frenchCtrl;
+  late TextEditingController _speciesCtrl;
+  late TextEditingController _familyCtrl;
+  late TextEditingController _sizeCtrl;
+  late TextEditingController _weightCtrl;
+  late TextEditingController _locCtrl;
+  late TextEditingController _notesCtrl;
+  Uint8List? _newImageBytes;   // nouvelle photo choisie
 
   @override
   void initState() {
     super.initState();
-    _catch = widget.catch_;
-    _sizeCtrl.text   = _catch.sizecm?.toString() ?? '';
-    _weightCtrl.text = _catch.weightkg?.toString() ?? '';
-    _locCtrl.text    = _catch.location ?? '';
-    _notesCtrl.text  = _catch.notes ?? '';
+    _c = widget.catch_;
+    _initControllers();
+  }
+
+  void _initControllers() {
+    _frenchCtrl  = TextEditingController(text: _c.frenchName);
+    _speciesCtrl = TextEditingController(text: _c.species);
+    _familyCtrl  = TextEditingController(text: _c.family);
+    _sizeCtrl    = TextEditingController(text: _c.sizecm?.toString()  ?? '');
+    _weightCtrl  = TextEditingController(text: _c.weightkg?.toString() ?? '');
+    _locCtrl     = TextEditingController(text: _c.location ?? '');
+    _notesCtrl   = TextEditingController(text: _c.notes ?? '');
   }
 
   @override
   void dispose() {
-    _sizeCtrl.dispose();
-    _weightCtrl.dispose();
-    _locCtrl.dispose();
-    _notesCtrl.dispose();
+    for (final c in [_frenchCtrl, _speciesCtrl, _familyCtrl, _sizeCtrl, _weightCtrl, _locCtrl, _notesCtrl]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  Future<void> _save() async {
-    if (_catch.id == null) return;
+  // ── Actions ────────────────────────────────────────────────────────
+  Future<void> _pickNewPhoto() async {
+    final picker = ImagePicker();
+    final xfile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 60,
+      maxWidth: 800,
+      maxHeight: 800,
+    );
+    if (xfile == null) return;
+    final bytes = await xfile.readAsBytes();
+    setState(() => _newImageBytes = bytes);
+  }
+
+  Future<void> _saveEdits() async {
+    if (_c.id == null) return;
     setState(() => _saving = true);
-    final fields = <String, dynamic>{};
-    final size   = double.tryParse(_sizeCtrl.text);
-    final weight = double.tryParse(_weightCtrl.text);
-    fields['sizecm']   = size;
-    fields['weightkg'] = weight;
-    fields['location'] = _locCtrl.text.isEmpty ? null : _locCtrl.text;
-    fields['notes']    = _notesCtrl.text.isEmpty ? null : _notesCtrl.text;
-    await CatchService.update(_catch.id!, fields);
+    final newImage = _newImageBytes != null ? base64Encode(_newImageBytes!) : null;
+    final updated = _c.copyWith(
+      frenchName: _frenchCtrl.text.trim(),
+      species:    _speciesCtrl.text.trim(),
+      family:     _familyCtrl.text.trim(),
+      sizecm:     double.tryParse(_sizeCtrl.text),
+      weightkg:   double.tryParse(_weightCtrl.text),
+      location:   _locCtrl.text.trim().isEmpty ? null : _locCtrl.text.trim(),
+      notes:      _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      imageBase64: newImage,
+      clearSize:   _sizeCtrl.text.trim().isEmpty,
+      clearWeight: _weightCtrl.text.trim().isEmpty,
+      clearLocation: _locCtrl.text.trim().isEmpty,
+      clearNotes:  _notesCtrl.text.trim().isEmpty,
+    );
+    await CatchService.replace(updated);
     setState(() {
-      _catch = _catch.copyWith(
-        sizecm:   size,
-        weightkg: weight,
-        location: _locCtrl.text.isEmpty ? null : _locCtrl.text,
-        notes:    _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
-      );
-      _editing = false;
-      _saving  = false;
+      _c        = updated;
+      _editMode = false;
+      _saving   = false;
+      _newImageBytes = null;
     });
   }
 
+  Future<void> _deleteCatch() async {
+    final ok = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (_) => CupertinoAlertDialog(
+        title: const Text('Supprimer'),
+        content: Text('Supprimer "${_c.frenchName}" de ta collection ?'),
+        actions: [
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Supprimer'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+        ],
+      ),
+    ) ?? false;
+    if (!ok) return;
+    await CatchService.delete(_c.id!);
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _togglePublish() async {
+    if (_c.id == null) return;
+    if (!_c.isPublished) {
+      // Demander la visibilité
+      bool? isPrivate = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (_) => CupertinoAlertDialog(
+          title: const Text('Publier dans le fil'),
+          content: const Text('Qui peut voir cette prise ?'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('🌍 Public'),
+            ),
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('🔒 Privé (amis)'),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () => Navigator.pop(context, null),
+              child: const Text('Annuler'),
+            ),
+          ],
+        ),
+      );
+      if (isPrivate == null) return;
+      await CatchService.update(_c.id!, {'isPublished': true, 'isPrivate': isPrivate});
+      setState(() => _c = _c.copyWith(isPublished: true, isPrivate: isPrivate));
+    } else {
+      // Dépublier
+      await CatchService.update(_c.id!, {'isPublished': false});
+      setState(() => _c = _c.copyWith(isPublished: false));
+    }
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,10 +171,10 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
     );
   }
 
-  // ── App bar avec la photo de l'utilisateur ─────────────────────
+  // ── App bar photo ──────────────────────────────────────────────────
   Widget _buildAppBar() {
     return SliverAppBar(
-      expandedHeight: 320,
+      expandedHeight: 300,
       pinned: true,
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
@@ -92,178 +184,59 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
         child: Container(
           margin: const EdgeInsets.only(left: 12),
           width: 36, height: 36,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.black.withOpacity(0.35),
-          ),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.35)),
           child: const Icon(CupertinoIcons.chevron_back, color: Colors.white, size: 18),
         ),
       ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: _buildHeroPhoto(),
-      ),
-    );
-  }
-
-  Widget _buildHeroPhoto() {
-    Widget photo;
-
-    if (_catch.imageBase64 != null && _catch.imageBase64!.isNotEmpty) {
-      try {
-        final bytes = base64Decode(_catch.imageBase64!);
-        photo = Image.memory(bytes, fit: BoxFit.cover, width: double.infinity, height: double.infinity);
-      } catch (_) {
-        photo = _wikiOrFallback();
-      }
-    } else {
-      photo = _wikiOrFallback();
-    }
-
-    return GestureDetector(
-      onTap: () => _showFullScreenImage(context),
-      child: Hero(
-        tag: 'catch_${_catch.id}',
-        child: photo,
-      ),
-    );
-  }
-
-  Widget _wikiOrFallback() {
-    if (_catch.fishImageUrl != null) {
-      return GestureDetector(
-        onTap: () => _showFullScreenWiki(context),
-        child: Image.network(_catch.fishImageUrl!, fit: BoxFit.cover, width: double.infinity),
-      );
-    }
-    return Container(
-      color: FishdexTheme.primary.withOpacity(0.08),
-      child: const Center(child: Text('🐟', style: TextStyle(fontSize: 80))),
-    );
-  }
-
-  void _showFullScreenImage(BuildContext context) {
-    if (_catch.imageBase64 == null) { _showFullScreenWiki(context); return; }
-    try {
-      final bytes = base64Decode(_catch.imageBase64!);
-      _openFullScreen(context, Image.memory(bytes, fit: BoxFit.contain));
-    } catch (_) {}
-  }
-
-  void _showFullScreenWiki(BuildContext context) {
-    if (_catch.fishImageUrl == null) return;
-    _openFullScreen(context, Image.network(_catch.fishImageUrl!, fit: BoxFit.contain));
-  }
-
-  void _openFullScreen(BuildContext context, Widget image) {
-    Navigator.push(context, PageRouteBuilder(
-      opaque: false,
-      pageBuilder: (_, __, ___) => _FullScreenImage(child: image),
-      transitionDuration: const Duration(milliseconds: 280),
-    ));
-  }
-
-  // ── Corps principal ────────────────────────────────────────────
-  Widget _buildBody() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildIdentity(),
-          const SizedBox(height: 20),
-          if (_catch.fishImageUrl != null) _buildWikiCard(),
-          const SizedBox(height: 20),
-          _buildConfidence(),
-          const SizedBox(height: 20),
-          _buildTop5(),
-          const SizedBox(height: 24),
-          _buildEditSection(),
-          if (_editing) ...[
-            const SizedBox(height: 16),
-            _buildEditForm(),
-            const SizedBox(height: 20),
-            _buildSaveButton(),
-          ] else if (_hasOptionalData()) ...[
-            const SizedBox(height: 16),
-            _buildOptionalData(),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIdentity() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_catch.frenchName,
-                    style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-                  Text(_catch.species,
-                    style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 14, fontStyle: FontStyle.italic)),
-                ],
-              ),
+      actions: [
+        // Supprimer
+        if (!_editMode)
+          CupertinoButton(
+            padding: const EdgeInsets.only(right: 4),
+            onPressed: _deleteCatch,
+            child: Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.35)),
+              child: const Icon(CupertinoIcons.trash, color: Colors.white, size: 16),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(_formatDate(_catch.timestamp),
-                  style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
-                Text(_formatTime(_catch.timestamp),
-                  style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 12)),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            _pill(_catch.family, FishdexTheme.primary),
-            const SizedBox(width: 8),
-            _pill('${(_catch.confidence * 100).toStringAsFixed(1)}% confiance', FishdexTheme.mint),
-          ],
+          ),
+        // Éditer / Annuler
+        CupertinoButton(
+          padding: const EdgeInsets.only(right: 12),
+          onPressed: () => setState(() {
+            _editMode = !_editMode;
+            if (!_editMode) { _initControllers(); _newImageBytes = null; }
+          }),
+          child: Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.35)),
+            child: Icon(
+              _editMode ? CupertinoIcons.xmark : CupertinoIcons.pencil,
+              color: Colors.white, size: 16),
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _buildWikiCard() {
-    return GestureDetector(
-      onTap: () => _showFullScreenWiki(context),
-      child: Container(
-        height: 140,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+      flexibleSpace: FlexibleSpaceBar(
+        background: GestureDetector(
+          onTap: _editMode ? _pickNewPhoto : () => _openFullScreen(context),
           child: Stack(
+            fit: StackFit.expand,
             children: [
-              Image.network(_catch.fishImageUrl!, fit: BoxFit.cover, width: double.infinity, height: 140),
-              Positioned(
-                bottom: 8, right: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.55),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(CupertinoIcons.zoom_in, color: Colors.white, size: 12),
-                      SizedBox(width: 4),
-                      Text('Photo Wikipedia', style: TextStyle(color: Colors.white, fontSize: 10)),
-                    ],
+              _buildHeroPhoto(),
+              if (_editMode)
+                Container(
+                  color: Colors.black.withOpacity(0.35),
+                  child: const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(CupertinoIcons.camera_fill, color: Colors.white, size: 32),
+                        SizedBox(height: 8),
+                        Text('Changer la photo', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -271,8 +244,159 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
     );
   }
 
+  Widget _buildHeroPhoto() {
+    if (_newImageBytes != null) {
+      return Image.memory(_newImageBytes!, fit: BoxFit.cover);
+    }
+    if (_c.imageBase64 != null && _c.imageBase64!.isNotEmpty) {
+      try {
+        return Image.memory(base64Decode(_c.imageBase64!), fit: BoxFit.cover);
+      } catch (_) {}
+    }
+    if (_c.fishImageUrl != null) {
+      return Image.network(_c.fishImageUrl!, fit: BoxFit.cover);
+    }
+    return Container(
+      color: FishdexTheme.primary.withOpacity(0.08),
+      child: const Center(child: Text('🐟', style: TextStyle(fontSize: 80))),
+    );
+  }
+
+  void _openFullScreen(BuildContext ctx) {
+    final Widget img;
+    if (_c.imageBase64 != null && _c.imageBase64!.isNotEmpty) {
+      try {
+        img = Image.memory(base64Decode(_c.imageBase64!), fit: BoxFit.contain);
+        _pushFullScreen(ctx, img);
+        return;
+      } catch (_) {}
+    }
+    if (_c.fishImageUrl != null) {
+      _pushFullScreen(ctx, Image.network(_c.fishImageUrl!, fit: BoxFit.contain));
+    }
+  }
+
+  void _pushFullScreen(BuildContext ctx, Widget child) {
+    Navigator.push(ctx, PageRouteBuilder(
+      opaque: false,
+      pageBuilder: (_, __, ___) => _FullScreenViewer(child: child),
+    ));
+  }
+
+  // ── Corps ──────────────────────────────────────────────────────────
+  Widget _buildBody() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _editMode ? _buildEditForm() : _buildReadView(),
+        ],
+      ),
+    );
+  }
+
+  // ── Vue lecture ────────────────────────────────────────────────────
+  Widget _buildReadView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Identité
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_c.frenchName,
+                    style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                  Text(_c.species,
+                    style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 14, fontStyle: FontStyle.italic)),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(_formatDate(_c.timestamp),
+                  style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
+                Text(_formatTime(_c.timestamp),
+                  style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          children: [
+            _pill(_c.family, FishdexTheme.primary),
+            _pill('${(_c.confidence * 100).toStringAsFixed(1)}%', FishdexTheme.mint),
+            if (_c.isPublished)
+              _pill(_c.isPrivate ? '🔒 Privé' : '🌍 Public', FishdexTheme.golden),
+          ],
+        ),
+
+        // Données optionnelles
+        if (_c.location != null || _c.sizecm != null || _c.weightkg != null || _c.notes != null) ...[
+          const SizedBox(height: 20),
+          if (_c.location != null) _infoRow(CupertinoIcons.location_fill, 'Lieu', _c.location!),
+          if (_c.sizecm  != null) _infoRow(CupertinoIcons.arrow_left_right, 'Taille', '${_c.sizecm} cm'),
+          if (_c.weightkg!= null) _infoRow(CupertinoIcons.chart_bar, 'Poids', '${_c.weightkg} kg'),
+          if (_c.notes   != null) _infoRow(CupertinoIcons.text_alignleft, 'Notes', _c.notes!),
+        ],
+
+        // Photo Wikipedia
+        if (_c.fishImageUrl != null) ...[
+          const SizedBox(height: 20),
+          _buildWikiCard(),
+        ],
+
+        // Confiance + Top 5
+        const SizedBox(height: 20),
+        _buildConfidence(),
+        const SizedBox(height: 16),
+        _buildTop5(),
+
+        // Bouton publier
+        const SizedBox(height: 28),
+        _buildPublishButton(),
+      ],
+    );
+  }
+
+  Widget _buildWikiCard() {
+    return GestureDetector(
+      onTap: () => _pushFullScreen(context, Image.network(_c.fishImageUrl!, fit: BoxFit.contain)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            Image.network(_c.fishImageUrl!, height: 140, width: double.infinity, fit: BoxFit.cover),
+            Positioned(
+              bottom: 8, right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), borderRadius: BorderRadius.circular(8)),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(CupertinoIcons.zoom_in, color: Colors.white, size: 11),
+                    SizedBox(width: 4),
+                    Text('Photo Wikipedia', style: TextStyle(color: Colors.white, fontSize: 10)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildConfidence() {
-    final pct = _catch.confidence;
+    final pct   = _c.confidence;
     final color = pct > 0.7 ? FishdexTheme.mint : pct > 0.4 ? FishdexTheme.golden : FishdexTheme.coral;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,7 +404,7 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Niveau de confiance', style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
+            const Text('Confiance IA', style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
             Text('${(pct * 100).toStringAsFixed(1)}%', style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700)),
           ],
         ),
@@ -288,8 +412,7 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
-            value: pct,
-            minHeight: 6,
+            value: pct, minHeight: 6,
             backgroundColor: Colors.black.withOpacity(0.06),
             valueColor: AlwaysStoppedAnimation(color),
           ),
@@ -299,17 +422,17 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
   }
 
   Widget _buildTop5() {
-    if (_catch.top5.isEmpty) return const SizedBox.shrink();
+    if (_c.top5.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Top 5 espèces possibles',
+        const Text('Top 5 identifications',
           style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
-        ...(_catch.top5.asMap().entries.map((e) {
-          final i = e.key;
+        ...(_c.top5.asMap().entries.map((e) {
+          final i  = e.key;
           final sp = e.value['species'] as String? ?? '';
-          final sc = ((e.value['score'] as num?)?.toDouble() ?? 0);
+          final sc = (e.value['score'] as num?)?.toDouble() ?? 0;
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
@@ -320,22 +443,16 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
                     shape: BoxShape.circle,
                     color: i == 0 ? FishdexTheme.primary.withOpacity(0.1) : Colors.black.withOpacity(0.04),
                   ),
-                  child: Center(
-                    child: Text('${i + 1}',
-                      style: TextStyle(
-                        color: i == 0 ? FishdexTheme.primary : FishdexTheme.textTertiary,
-                        fontSize: 10, fontWeight: FontWeight.w700)),
-                  ),
+                  child: Center(child: Text('${i + 1}',
+                    style: TextStyle(color: i == 0 ? FishdexTheme.primary : FishdexTheme.textTertiary,
+                      fontSize: 10, fontWeight: FontWeight.w700))),
                 ),
                 const SizedBox(width: 10),
-                Expanded(
-                  child: Text(sp,
-                    style: TextStyle(
-                      color: i == 0 ? FishdexTheme.textPrimary : FishdexTheme.textSecondary,
-                      fontSize: 13,
-                      fontStyle: FontStyle.italic,
-                      fontWeight: i == 0 ? FontWeight.w600 : FontWeight.w400)),
-                ),
+                Expanded(child: Text(sp,
+                  style: TextStyle(
+                    color: i == 0 ? FishdexTheme.textPrimary : FishdexTheme.textSecondary,
+                    fontSize: 13, fontStyle: FontStyle.italic,
+                    fontWeight: i == 0 ? FontWeight.w600 : FontWeight.w400))),
                 Text('${(sc * 100).toStringAsFixed(0)}%',
                   style: TextStyle(
                     color: i == 0 ? FishdexTheme.primary : FishdexTheme.textTertiary,
@@ -348,64 +465,92 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
     );
   }
 
-  bool _hasOptionalData() =>
-      _catch.sizecm != null || _catch.weightkg != null || _catch.location != null || _catch.notes != null;
+  Widget _buildPublishButton() {
+    final published = _c.isPublished;
+    return SizedBox(
+      width: double.infinity,
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        color: published ? FishdexTheme.coral.withOpacity(0.12) : FishdexTheme.primary,
+        borderRadius: BorderRadius.circular(16),
+        onPressed: _togglePublish,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              published ? CupertinoIcons.eye_slash_fill : CupertinoIcons.paperplane_fill,
+              color: published ? FishdexTheme.coral : Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Text(
+              published
+                ? (_c.isPrivate ? 'Publié (privé) · Retirer' : 'Publié (public) · Retirer')
+                : 'Publier dans le fil',
+              style: TextStyle(
+                color: published ? FishdexTheme.coral : Colors.white,
+                fontWeight: FontWeight.w700, fontSize: 15)),
+          ],
+        ),
+      ),
+    );
+  }
 
-  Widget _buildEditSection() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // ── Vue édition ────────────────────────────────────────────────────
+  Widget _buildEditForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Ma prise', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
-        GestureDetector(
-          onTap: () => setState(() => _editing = !_editing),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: _editing ? FishdexTheme.coral.withOpacity(0.08) : FishdexTheme.primary.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: (_editing ? FishdexTheme.coral : FishdexTheme.primary).withOpacity(0.2)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _editing ? CupertinoIcons.xmark : CupertinoIcons.pencil,
-                  color: _editing ? FishdexTheme.coral : FishdexTheme.primary,
-                  size: 13),
-                const SizedBox(width: 5),
-                Text(
-                  _editing ? 'Annuler' : 'Modifier',
-                  style: TextStyle(
-                    color: _editing ? FishdexTheme.coral : FishdexTheme.primary,
-                    fontSize: 13, fontWeight: FontWeight.w600)),
-              ],
-            ),
+        const Text('Modifier la prise',
+          style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        const Text('Tape sur la photo en haut pour la changer',
+          style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 12)),
+        const SizedBox(height: 20),
+
+        _sectionLabel('Identification'),
+        _field('Nom français', _frenchCtrl, 'Daurade royale'),
+        const SizedBox(height: 10),
+        _field('Nom scientifique', _speciesCtrl, 'Sparus aurata', italic: true),
+        const SizedBox(height: 10),
+        _field('Famille', _familyCtrl, 'Sparidae'),
+
+        const SizedBox(height: 20),
+        _sectionLabel('Ma prise (facultatif)'),
+        Row(
+          children: [
+            Expanded(child: _field('Taille (cm)', _sizeCtrl, '42', type: const TextInputType.numberWithOptions(decimal: true))),
+            const SizedBox(width: 12),
+            Expanded(child: _field('Poids (kg)', _weightCtrl, '1.8', type: const TextInputType.numberWithOptions(decimal: true))),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _field('Lieu de pêche', _locCtrl, 'Lac de Villefranche…'),
+        const SizedBox(height: 10),
+        _field('Notes', _notesCtrl, 'Belle prise sur leurre…', maxLines: 3),
+
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: CupertinoButton(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            color: FishdexTheme.primary,
+            borderRadius: BorderRadius.circular(16),
+            onPressed: _saving ? null : _saveEdits,
+            child: _saving
+                ? const CupertinoActivityIndicator(color: Colors.white)
+                : const Text('Enregistrer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildEditForm() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(child: _field('Taille (cm)', _sizeCtrl, TextInputType.numberWithOptions(decimal: true), '42')),
-            const SizedBox(width: 12),
-            Expanded(child: _field('Poids (kg)', _weightCtrl, TextInputType.numberWithOptions(decimal: true), '1.8')),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _field('Lieu de pêche', _locCtrl, TextInputType.text, 'Lac de Villefranche…'),
-        const SizedBox(height: 12),
-        _field('Notes', _notesCtrl, TextInputType.multiline, 'Belle prise sur leurre…', maxLines: 3),
-      ],
-    );
-  }
+  Widget _sectionLabel(String t) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(t, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+  );
 
-  Widget _field(String label, TextEditingController ctrl, TextInputType type, String hint, {int maxLines = 1}) {
+  Widget _field(String label, TextEditingController ctrl, String hint,
+      {TextInputType type = TextInputType.text, int maxLines = 1, bool italic = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -421,7 +566,10 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
             controller: ctrl,
             keyboardType: type,
             maxLines: maxLines,
-            style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14),
+            style: TextStyle(
+              color: FishdexTheme.textPrimary,
+              fontSize: 14,
+              fontStyle: italic ? FontStyle.italic : FontStyle.normal),
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 13),
@@ -434,100 +582,58 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
     );
   }
 
-  Widget _buildSaveButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: CupertinoButton(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        color: FishdexTheme.primary,
-        borderRadius: BorderRadius.circular(16),
-        onPressed: _saving ? null : _save,
-        child: _saving
-            ? const CupertinoActivityIndicator(color: Colors.white)
-            : const Text('Enregistrer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
-      ),
-    );
-  }
-
-  Widget _buildOptionalData() {
-    return Column(
+  Widget _infoRow(IconData icon, String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
       children: [
-        if (_catch.location != null)
-          _infoRow(CupertinoIcons.location_fill, 'Lieu', _catch.location!),
-        if (_catch.sizecm != null)
-          _infoRow(CupertinoIcons.arrow_left_right, 'Taille', '${_catch.sizecm} cm'),
-        if (_catch.weightkg != null)
-          _infoRow(CupertinoIcons.chart_bar, 'Poids', '${_catch.weightkg} kg'),
-        if (_catch.notes != null)
-          _infoRow(CupertinoIcons.text_alignleft, 'Notes', _catch.notes!),
+        Container(
+          width: 34, height: 34,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary.withOpacity(0.08)),
+          child: Icon(icon, color: FishdexTheme.primary, size: 15),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+            Text(value, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
+          ],
+        ),
       ],
-    );
-  }
-
-  Widget _infoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 34, height: 34,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: FishdexTheme.primary.withOpacity(0.08),
-            ),
-            child: Icon(icon, color: FishdexTheme.primary, size: 15),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
-              Text(value, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+    ),
+  );
 
   Widget _pill(String label, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.10),
-      borderRadius: BorderRadius.circular(10),
-    ),
+    decoration: BoxDecoration(color: color.withOpacity(0.10), borderRadius: BorderRadius.circular(10)),
     child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
   );
 
   String _formatDate(DateTime d) {
-    const months = ['jan', 'fév', 'mar', 'avr', 'mai', 'jun', 'jul', 'aoû', 'sep', 'oct', 'nov', 'déc'];
-    return '${d.day} ${months[d.month - 1]}. ${d.year}';
+    const m = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+    return '${d.day} ${m[d.month - 1]}. ${d.year}';
   }
 
   String _formatTime(DateTime d) =>
-      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+      '${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
 }
 
 // ── Visionneuse plein écran ────────────────────────────────────────
-class _FullScreenImage extends StatelessWidget {
+class _FullScreenViewer extends StatelessWidget {
   final Widget child;
-  const _FullScreenImage({required this.child});
+  const _FullScreenViewer({required this.child});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => Navigator.pop(context),
-      child: Container(
-        color: Colors.black.withOpacity(0.92),
-        child: SafeArea(
+      child: Scaffold(
+        backgroundColor: Colors.black.withOpacity(0.92),
+        body: SafeArea(
           child: Stack(
             children: [
               Center(
-                child: InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 4,
-                  child: child,
-                ),
+                child: InteractiveViewer(minScale: 0.5, maxScale: 4, child: child),
               ),
               Positioned(
                 top: 12, right: 16,
@@ -535,10 +641,7 @@ class _FullScreenImage extends StatelessWidget {
                   onTap: () => Navigator.pop(context),
                   child: Container(
                     width: 36, height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.15),
-                    ),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.15)),
                     child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 18),
                   ),
                 ),

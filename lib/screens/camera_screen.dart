@@ -210,26 +210,6 @@ class _CameraScreenState extends State<CameraScreen>
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
         child: Column(
           children: [
-            // Header
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: FishdexTheme.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: FishdexTheme.primary.withOpacity(0.15)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(CupertinoIcons.viewfinder, color: FishdexTheme.primary, size: 16),
-                      const SizedBox(width: 6),
-                      Text('Scanner', style: TextStyle(color: FishdexTheme.primary, fontSize: 14, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
             const Spacer(),
             Container(
               width: 130,
@@ -328,18 +308,8 @@ class _CameraScreenState extends State<CameraScreen>
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      GlassCard(blur: 20, radius: 14,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          child: Row(children: [
-                            Icon(CupertinoIcons.viewfinder, color: FishdexTheme.primary, size: 14),
-                            const SizedBox(width: 6),
-                            const Text('Scanner', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                          ]),
-                        ),
-                      ),
                       GestureDetector(
                         onTap: _reset,
                         child: GlassCard(blur: 20, radius: 14,
