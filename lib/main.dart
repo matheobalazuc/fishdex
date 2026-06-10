@@ -1,15 +1,18 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'firebase_options.dart';
 import 'theme/fishdex_theme.dart';
 import 'widgets/liquid_nav_bar.dart';
 import 'screens/home_screen.dart';
 import 'screens/marketplace_screen.dart';
 import 'screens/camera_screen.dart';
-import 'screens/messages_screen.dart';
+import 'screens/collection_screen.dart';
 import 'screens/profile_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarBrightness: Brightness.light,
     statusBarIconBrightness: Brightness.dark,
@@ -49,7 +52,7 @@ class _FishdexShellState extends State<FishdexShell>
     HomeScreen(),
     MarketplaceScreen(),
     CameraScreen(),
-    MessagesScreen(),
+    CollectionScreen(),
     ProfileScreen(),
   ];
 
@@ -68,9 +71,7 @@ class _FishdexShellState extends State<FishdexShell>
 
   @override
   void dispose() {
-    for (final c in _pageControllers) {
-      c.dispose();
-    }
+    for (final c in _pageControllers) c.dispose();
     super.dispose();
   }
 
@@ -85,15 +86,11 @@ class _FishdexShellState extends State<FishdexShell>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FishdexTheme.background,
+      backgroundColor: Colors.white,
       extendBody: true,
       body: Stack(
         children: [
-          // Fond blanc épuré avec légère nuance d'eau
-          Container(
-            color: Colors.white,
-          ),
-          // Page stack
+          Container(color: Colors.white),
           ...List.generate(_screens.length, (i) {
             return AnimatedBuilder(
               animation: _pageControllers[i],
