@@ -8,10 +8,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/catch_model.dart';
 import '../services/auth_service.dart';
 import '../services/catch_service.dart';
+import '../services/hotspot_service.dart';
 import '../services/social_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 import 'catch_detail_screen.dart';
+import 'user_profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,6 +25,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late final Stream<List<FishCatch>>            _feedStream;
   late final Stream<List<Map<String, dynamic>>> _topStream;
+  late final Stream<List<Hotspot>>              _hotspotStream;
   Stream<List<FishCatch>>?  _recentStream;
   Stream<List<FishCatch>>?  _statsStream;
   Stream<int>?              _notifStream;
@@ -31,8 +34,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _feedStream = CatchService.feedStream();
-    _topStream  = CatchService.topFishersStream();
+    _feedStream     = CatchService.feedStream();
+    _topStream      = CatchService.topFishersStream();
+    _hotspotStream  = HotspotService.stream();
     _refreshAuthStreams();
     _authSub = AuthService.authStateChanges.listen((_) {
       if (mounted) setState(_refreshAuthStreams);
@@ -57,46 +61,26 @@ class _HomeScreenState extends State<HomeScreen> {
       physics: const BouncingScrollPhysics(),
       slivers: [
         _buildAppBar(),
-        // 1. Fil des prises (en premier)
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: _buildFeed(),
-          ),
-        ),
-        // 2. Top pêcheurs (réels)
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-            child: _buildTopFishers(),
-          ),
-        ),
-        // 3. Mes prises récentes
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-            child: _buildMyRecent(),
-          ),
-        ),
-        // 4. Mes succès
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-            child: _buildMyAchievements(),
-          ),
-        ),
-        // 5. Hot Spots
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 140),
-            child: _buildHotSpots(),
-          ),
-        ),
+        SliverToBoxAdapter(child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: _buildFeed())),
+        SliverToBoxAdapter(child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+          child: _buildTopFishers())),
+        SliverToBoxAdapter(child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+          child: _buildMyRecent())),
+        SliverToBoxAdapter(child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+          child: _buildMyAchievements(context))),
+        SliverToBoxAdapter(child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 140),
+          child: _buildHotSpots(context))),
       ],
     );
   }
 
-  // ── App bar ─────────────────────────────────
+  // ── App bar ─────────────────────────────────────────────────────────
   Widget _buildAppBar() {
     return SliverAppBar(
       backgroundColor: Colors.transparent,
@@ -116,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   StreamBuilder<dynamic>(
                     stream: AuthService.authStateChanges,
-                    builder: (context, authSnap) {
+                    builder: (context, _) {
                       final name = AuthService.isLoggedIn
                           ? AuthService.currentUserName.split(' ').first
                           : null;
@@ -144,22 +128,19 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Container(
             color: Colors.white.withOpacity(0.5),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 28, height: 28,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00C6E0)]),
-                  ),
-                  child: const Center(child: Text('🐟', style: TextStyle(fontSize: 14))),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 28, height: 28,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00C6E0)]),
                 ),
-                const SizedBox(width: 8),
-                const Text('Fishdex',
-                  style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
-              ],
-            ),
+                child: const Center(child: Text('🐟', style: TextStyle(fontSize: 14))),
+              ),
+              const SizedBox(width: 8),
+              const Text('Fishdex',
+                style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+            ]),
           ),
         ),
       ),
@@ -172,30 +153,27 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () => _showNotifications(context),
               child: Container(
                 margin: const EdgeInsets.only(right: 16),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 38, height: 38,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.7),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2))],
-                      ),
-                      child: const Icon(CupertinoIcons.bell, color: FishdexTheme.textPrimary, size: 18),
+                child: Stack(clipBehavior: Clip.none, children: [
+                  Container(
+                    width: 38, height: 38,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.7),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2))],
                     ),
-                    if (count > 0)
-                      Positioned(
-                        top: -2, right: -2,
-                        child: Container(
-                          width: 16, height: 16,
-                          decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.coral),
-                          child: Center(child: Text('$count',
-                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800))),
-                        ),
+                    child: const Icon(CupertinoIcons.bell, color: FishdexTheme.textPrimary, size: 18),
+                  ),
+                  if (count > 0)
+                    Positioned(
+                      top: -2, right: -2,
+                      child: Container(
+                        width: 16, height: 16,
+                        decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.coral),
+                        child: Center(child: Text('$count',
+                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800))),
                       ),
-                  ],
-                ),
+                    ),
+                ]),
               ),
             );
           },
@@ -204,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Fil des prises ─────────────────────────────────────────────────
+  // ── Fil des prises ───────────────────────────────────────────────────
   Widget _buildFeed() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,30 +195,24 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CupertinoActivityIndicator(),
-              ));
+                padding: EdgeInsets.all(24), child: CupertinoActivityIndicator()));
             }
             final catches = snap.data ?? [];
             if (catches.isEmpty) {
-              return GlassCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    children: [
-                      const Text('🌊', style: TextStyle(fontSize: 36)),
-                      const SizedBox(height: 8),
-                      const Text('Aucune prise publiée pour l\'instant',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
-                      const SizedBox(height: 4),
-                      const Text('Va dans ta collection et publie une prise !',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 12)),
-                    ],
-                  ),
-                ),
-              );
+              return GlassCard(child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(children: [
+                  const Text('🌊', style: TextStyle(fontSize: 36)),
+                  const SizedBox(height: 8),
+                  const Text('Aucune prise publiée pour l\'instant',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+                  const SizedBox(height: 4),
+                  const Text('Va dans ta collection et publie une prise !',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 12)),
+                ]),
+              ));
             }
             return Column(
               children: catches.asMap().entries.map((e) =>
@@ -259,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Top pêcheurs ───────────────────────────────────────────────────
+  // ── Top pêcheurs ─────────────────────────────────────────────────────
   Widget _buildTopFishers() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,19 +246,17 @@ class _HomeScreenState extends State<HomeScreen> {
             if (fishers.isEmpty) {
               return Column(
                 children: _staticTopFishers()
-                    .asMap().entries.map((e) =>
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: e.value.animate().fadeIn(delay: Duration(milliseconds: 80 * e.key)).slideX(begin: 0.06, end: 0),
-                  ),
-                ).toList(),
+                    .asMap().entries.map((e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: e.value.animate().fadeIn(delay: Duration(milliseconds: 80 * e.key)).slideX(begin: 0.06, end: 0),
+                    )).toList(),
               );
             }
             return Column(
               children: fishers.asMap().entries.map((e) =>
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _buildFisherTile(e.key, e.value)
+                  child: _buildFisherTile(context, e.key, e.value)
                       .animate()
                       .fadeIn(delay: Duration(milliseconds: 80 * e.key))
                       .slideX(begin: 0.06, end: 0),
@@ -299,19 +269,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFisherTile(int index, Map<String, dynamic> f) {
+  Widget _buildFisherTile(BuildContext context, int index, Map<String, dynamic> f) {
     final name     = f['displayName'] as String? ?? 'Pêcheur';
     final username = f['username']    as String? ?? '';
+    final uid      = f['uid']         as String? ?? '';
     final count    = (f['catchCount'] as num?)?.toInt() ?? 0;
     final rank     = index + 1;
     final rankColor = rank == 1 ? FishdexTheme.golden
         : rank == 2 ? FishdexTheme.textSecondary
         : FishdexTheme.coral;
-    return GlassCard(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
+
+    return GestureDetector(
+      onTap: uid.isNotEmpty ? () => Navigator.push(context,
+          CupertinoPageRoute(builder: (_) => UserProfileScreen(
+            userId: uid, displayName: name, userHandle: username))) : null,
+      child: GlassCard(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
             Container(
               width: 36, height: 36,
               decoration: BoxDecoration(
@@ -325,65 +300,55 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 12),
             const Text('🎣', style: TextStyle(fontSize: 28)),
             const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                    style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
-                  if (username.isNotEmpty)
-                    Text('@$username',
-                      style: const TextStyle(color: FishdexTheme.primary, fontSize: 11, fontWeight: FontWeight.w500)),
-                  Row(
-                    children: [
-                      const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 11),
-                      const SizedBox(width: 3),
-                      Text('$count prise${count > 1 ? "s" : ""}',
-                        style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name,
+                style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+              if (username.isNotEmpty)
+                Text('@$username',
+                  style: const TextStyle(color: FishdexTheme.primary, fontSize: 11, fontWeight: FontWeight.w500)),
+              Row(children: [
+                const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 11),
+                const SizedBox(width: 3),
+                Text('$count prise${count > 1 ? "s" : ""}',
+                  style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
+              ]),
+            ])),
+            const Icon(CupertinoIcons.chevron_right, color: FishdexTheme.textTertiary, size: 14),
+          ]),
         ),
       ),
     );
   }
 
   List<Widget> _staticTopFishers() => [
-    _staticFisherTile(1, '@leBrochet',     2847, FishdexTheme.golden),
-    _staticFisherTile(2, '@mariePêche',    2561, FishdexTheme.textSecondary),
-    _staticFisherTile(3, '@surfcaster33',  2340, FishdexTheme.coral),
+    _staticFisherTile(1, '@leBrochet',    2847, FishdexTheme.golden),
+    _staticFisherTile(2, '@mariePêche',   2561, FishdexTheme.textSecondary),
+    _staticFisherTile(3, '@surfcaster33', 2340, FishdexTheme.coral),
   ];
 
   Widget _staticFisherTile(int rank, String name, int pts, Color color) =>
-    GlassCard(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Container(width: 36, height: 36,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.12),
-                border: Border.all(color: color.withOpacity(0.3), width: 1.5)),
-              child: Center(child: Text('$rank', style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w800)))),
-            const SizedBox(width: 12),
-            const Text('🎣', style: TextStyle(fontSize: 28)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
-              Row(children: [
-                const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 11),
-                const SizedBox(width: 3),
-                Text('$pts pts', style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
-              ]),
-            ])),
-          ],
-        ),
-      ),
-    );
+    GlassCard(child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Row(children: [
+        Container(width: 36, height: 36,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.12),
+            border: Border.all(color: color.withOpacity(0.3), width: 1.5)),
+          child: Center(child: Text('$rank', style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w800)))),
+        const SizedBox(width: 12),
+        const Text('🎣', style: TextStyle(fontSize: 28)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(name, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+          Row(children: [
+            const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 11),
+            const SizedBox(width: 3),
+            Text('$pts pts', style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
+          ]),
+        ])),
+      ]),
+    ));
 
-  // ── Mes prises récentes ────────────────────────────────────────────
+  // ── Mes prises récentes ──────────────────────────────────────────────
   Widget _buildMyRecent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -395,30 +360,23 @@ class _HomeScreenState extends State<HomeScreen> {
           stream: _recentStream ?? Stream.value([]),
           builder: (context, snap) {
             if (!AuthService.isLoggedIn) {
-              return GlassCard(
-                child: const Padding(
-                  padding: EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Text('🔒', style: TextStyle(fontSize: 24)),
-                      SizedBox(width: 12),
-                      Expanded(child: Text('Connecte-toi pour voir tes prises récentes',
-                        style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13))),
-                    ],
-                  ),
-                ),
-              );
+              return GlassCard(child: const Padding(
+                padding: EdgeInsets.all(18),
+                child: Row(children: [
+                  Text('🔒', style: TextStyle(fontSize: 24)),
+                  SizedBox(width: 12),
+                  Expanded(child: Text('Connecte-toi pour voir tes prises récentes',
+                    style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13))),
+                ]),
+              ));
             }
             final catches = snap.data ?? [];
             if (catches.isEmpty) {
-              return GlassCard(
-                child: const Padding(
-                  padding: EdgeInsets.all(18),
-                  child: Text('Aucune prise pour l\'instant. Utilise la caméra !',
-                    style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13),
-                    textAlign: TextAlign.center),
-                ),
-              );
+              return GlassCard(child: const Padding(
+                padding: EdgeInsets.all(18),
+                child: Text('Aucune prise pour l\'instant. Utilise la caméra !',
+                  style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13),
+                  textAlign: TextAlign.center)));
             }
             return SizedBox(
               height: 150,
@@ -436,37 +394,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildRecentTile(FishCatch c) {
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: c)),
-      ),
+      onTap: () => Navigator.push(context,
+          CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: c))),
       child: Container(
         width: 120,
         margin: const EdgeInsets.only(right: 12),
-        child: GlassCard(
-          radius: 20,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(width: double.infinity, height: 60, child: _catchThumb(c)),
-                ),
-                const Spacer(),
-                Text(c.frenchName,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
-                if (c.weightkg != null)
-                  Text('${c.weightkg} kg',
-                    style: const TextStyle(color: FishdexTheme.primary, fontSize: 11, fontWeight: FontWeight.w600)),
-                Text(_ago(c.timestamp),
-                  style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 9)),
-              ],
-            ),
-          ),
-        ),
+        child: GlassCard(radius: 20, child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(width: double.infinity, height: 60, child: _catchThumb(c))),
+            const Spacer(),
+            Text(c.frenchName, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
+            if (c.weightkg != null)
+              Text('${c.weightkg} kg',
+                style: const TextStyle(color: FishdexTheme.primary, fontSize: 11, fontWeight: FontWeight.w600)),
+            Text(_ago(c.timestamp),
+              style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 9)),
+          ]),
+        )),
       ),
     );
   }
@@ -480,8 +428,8 @@ class _HomeScreenState extends State<HomeScreen> {
       child: const Center(child: Text('🐟', style: TextStyle(fontSize: 26))));
   }
 
-  // ── Mes succès ────────────────────────────────────────────────────
-  Widget _buildMyAchievements() {
+  // ── Mes succès ────────────────────────────────────────────────────────
+  Widget _buildMyAchievements(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -490,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 12),
         StreamBuilder<List<FishCatch>>(
           stream: _statsStream ?? Stream.value([]),
-          builder: (context, snap) {
+          builder: (ctx, snap) {
             if (!AuthService.isLoggedIn) {
               return GlassCard(child: const Padding(
                 padding: EdgeInsets.all(16),
@@ -502,22 +450,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 ]),
               ));
             }
-            final catches   = snap.data ?? [];
-            final total     = catches.length;
-            final species   = catches.map((c) => c.species).toSet().length;
+            final catches = snap.data ?? [];
+            final total   = catches.length;
+            final species = catches.map((c) => c.species).toSet().length;
             final achv = [
-              _AchievementDef('🎣', 'Premier Lancer', total >= 1),
-              _AchievementDef('📖', 'Collectionneur', total >= 5),
-              _AchievementDef('🔬', 'Explorateur',    species >= 3),
-              _AchievementDef('🏆', 'Légende',         total >= 10),
-              _AchievementDef('🌊', 'Maître',          species >= 10),
+              _AchievementDef('🎣', 'Premier Lancer',  'Enregistre ta première prise',         total >= 1),
+              _AchievementDef('📖', 'Collectionneur',  'Enregistre 5 prises',                  total >= 5),
+              _AchievementDef('🔬', 'Explorateur',     'Identifie 3 espèces différentes',      species >= 3),
+              _AchievementDef('🏆', 'Légende',          'Enregistre 10 prises',                 total >= 10),
+              _AchievementDef('🌊', 'Maître',           'Identifie 10 espèces différentes',     species >= 10),
             ];
             return SizedBox(
               height: 100,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
-                children: achv.map((a) => _achievementBadge(a)).toList(),
+                children: achv.map((a) => _achievementBadge(context, a)).toList(),
               ),
             );
           },
@@ -526,39 +474,96 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _achievementBadge(_AchievementDef a) {
-    return Container(
-      width: 88,
-      margin: const EdgeInsets.only(right: 10),
-      decoration: BoxDecoration(
-        color: a.unlocked
-            ? FishdexTheme.golden.withOpacity(0.08)
-            : Colors.black.withOpacity(0.03),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
+  Widget _achievementBadge(BuildContext context, _AchievementDef a) {
+    return GestureDetector(
+      onTap: () => _showAchievementPopup(context, a),
+      child: Container(
+        width: 88,
+        margin: const EdgeInsets.only(right: 10),
+        decoration: BoxDecoration(
           color: a.unlocked
-              ? FishdexTheme.golden.withOpacity(0.3)
-              : Colors.black.withOpacity(0.06)),
+              ? FishdexTheme.golden.withOpacity(0.08)
+              : Colors.black.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: a.unlocked
+                ? FishdexTheme.golden.withOpacity(0.3)
+                : Colors.black.withOpacity(0.06)),
+        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Text(a.unlocked ? a.emoji : '🔒', style: const TextStyle(fontSize: 28)),
+          const SizedBox(height: 6),
+          Text(a.label, textAlign: TextAlign.center, maxLines: 2,
+            style: TextStyle(
+              color: a.unlocked ? FishdexTheme.golden : FishdexTheme.textTertiary,
+              fontSize: 9, fontWeight: a.unlocked ? FontWeight.w700 : FontWeight.w400)),
+        ]),
       ),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Text(a.unlocked ? a.emoji : '🔒', style: const TextStyle(fontSize: 28)),
-        const SizedBox(height: 6),
-        Text(a.label, textAlign: TextAlign.center, maxLines: 2,
-          style: TextStyle(
-            color: a.unlocked ? FishdexTheme.golden : FishdexTheme.textTertiary,
-            fontSize: 9, fontWeight: a.unlocked ? FontWeight.w700 : FontWeight.w400)),
-      ]),
     );
   }
 
-  // ── Hot Spots ──────────────────────────────────────────────────────
-  static const _hotSpots = [
+  void _showAchievementPopup(BuildContext context, _AchievementDef a) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.all(Radius.circular(28)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Center(child: Container(width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2)))),
+          Text(a.unlocked ? a.emoji : '🔒', style: const TextStyle(fontSize: 52)),
+          const SizedBox(height: 14),
+          Text(a.label,
+            style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            decoration: BoxDecoration(
+              color: a.unlocked
+                  ? FishdexTheme.golden.withOpacity(0.09)
+                  : Colors.black.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              a.unlocked
+                  ? '✅ Obtenu en : ${a.description.toLowerCase()}'
+                  : '🎯 Objectif : ${a.description}',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: a.unlocked ? FishdexTheme.golden : FishdexTheme.textSecondary,
+                fontSize: 14, fontWeight: FontWeight.w500)),
+          ),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: double.infinity, height: 50,
+              decoration: BoxDecoration(
+                color: a.unlocked ? FishdexTheme.golden : FishdexTheme.primary,
+                borderRadius: BorderRadius.circular(16)),
+              child: const Center(child: Text('OK',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16))),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  // ── Hot Spots ──────────────────────────────────────────────────────────
+  static const _staticHotSpots = [
     _HotSpot('Lac de Sainte-Croix', 'Truite, Brochet', 4.8, 43.7754, 6.1488),
     _HotSpot('Étang de Berre',      'Carpe, Anguille',  4.5, 43.4531, 5.1714),
     _HotSpot('Rivière Arc',         'Sandre, Perche',   4.2, 43.5298, 5.4380),
   ];
 
-  Widget _buildHotSpots() {
+  Widget _buildHotSpots(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -567,42 +572,71 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             const Text('Hot Spots',
               style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: FishdexTheme.coral.withOpacity(0.10),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: FishdexTheme.coral.withOpacity(0.2)),
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: FishdexTheme.coral.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: FishdexTheme.coral.withOpacity(0.2)),
+                ),
+                child: const Row(children: [
+                  Icon(CupertinoIcons.flame_fill, color: FishdexTheme.coral, size: 12),
+                  SizedBox(width: 4),
+                  Text('Actif', style: TextStyle(color: FishdexTheme.coral, fontSize: 12, fontWeight: FontWeight.w600)),
+                ]),
               ),
-              child: const Row(children: [
-                Icon(CupertinoIcons.flame_fill, color: FishdexTheme.coral, size: 12),
-                SizedBox(width: 4),
-                Text('Actif', style: TextStyle(color: FishdexTheme.coral, fontSize: 12, fontWeight: FontWeight.w600)),
-              ]),
-            ),
+              if (AuthService.isLoggedIn) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => _showAddHotspotSheet(context),
+                  child: Container(
+                    width: 32, height: 32,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: FishdexTheme.primary,
+                    ),
+                    child: const Icon(CupertinoIcons.add, color: Colors.white, size: 16),
+                  ),
+                ),
+              ],
+            ]),
           ],
         ),
         const SizedBox(height: 12),
-        GlassCard(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: List.generate(_hotSpots.length, (i) => Column(
-                children: [
+        StreamBuilder<List<Hotspot>>(
+          stream: _hotspotStream,
+          builder: (context, snap) {
+            final spots = snap.data ?? [];
+            if (spots.isEmpty) {
+              return GlassCard(child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: List.generate(_staticHotSpots.length, (i) => Column(children: [
+                    if (i > 0) Divider(color: Colors.black.withOpacity(0.05), height: 20),
+                    _staticHotSpotRow(context, _staticHotSpots[i]),
+                  ])),
+                ),
+              ));
+            }
+            return GlassCard(child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: List.generate(spots.length, (i) => Column(children: [
                   if (i > 0) Divider(color: Colors.black.withOpacity(0.05), height: 20),
-                  _hotSpotRow(_hotSpots[i]),
-                ],
-              )),
-            ),
-          ),
+                  _dynamicHotSpotRow(context, spots[i]),
+                ])),
+              ),
+            ));
+          },
         ),
       ],
     );
   }
 
-  Widget _hotSpotRow(_HotSpot spot) {
+  Widget _staticHotSpotRow(BuildContext context, _HotSpot spot) {
     return GestureDetector(
-      onTap: () => _openMap(spot),
+      onTap: () => _openMapAt(spot.lat, spot.lng, spot.name),
       child: Row(children: [
         Container(width: 42, height: 42,
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: FishdexTheme.primary.withOpacity(0.08)),
@@ -623,13 +657,130 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _openMap(_HotSpot spot) async {
-    final uri = Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(spot.name)}&center=${spot.lat},${spot.lng}');
+  Widget _dynamicHotSpotRow(BuildContext context, Hotspot spot) {
+    return GestureDetector(
+      onTap: () => _openMapAt(spot.lat, spot.lng, spot.name),
+      child: Row(children: [
+        Container(width: 42, height: 42,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: FishdexTheme.primary.withOpacity(0.08)),
+          child: const Center(child: Text('📍', style: TextStyle(fontSize: 20)))),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(spot.name, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(spot.fish, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
+          if (spot.userHandle.isNotEmpty)
+            Text('@${spot.userHandle}',
+              style: const TextStyle(color: FishdexTheme.primary, fontSize: 10, fontWeight: FontWeight.w500)),
+        ])),
+        Row(children: [
+          const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 12),
+          const SizedBox(width: 3),
+          Text('${spot.rating.toStringAsFixed(1)}',
+            style: const TextStyle(color: FishdexTheme.golden, fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 8),
+          const Icon(CupertinoIcons.map, color: FishdexTheme.primary, size: 16),
+        ]),
+      ]),
+    );
+  }
+
+  Future<void> _openMapAt(double lat, double lng, String name) async {
+    final uri = (lat != 0 && lng != 0)
+        ? Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(name)}&center=$lat,$lng')
+        : Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(name)}');
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  // ── Notifications sheet ────────────────────────────────────────────
+  void _showAddHotspotSheet(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final fishCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setState) {
+          bool saving = false;
+          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+          return Container(
+            margin: const EdgeInsets.all(12),
+            padding: EdgeInsets.fromLTRB(24, 8, 24, 24 + bottom),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.all(Radius.circular(28)),
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Center(child: Container(width: 36, height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2)))),
+              const Text('📍 Ajouter un Hot Spot',
+                style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text('Partage ton spot avec la communauté',
+                style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
+              const SizedBox(height: 20),
+              _spotField('Nom du spot', nameCtrl, 'Ex: Lac de Sainte-Croix'),
+              const SizedBox(height: 12),
+              _spotField('Espèces présentes', fishCtrl, 'Ex: Truite, Brochet'),
+              const SizedBox(height: 20),
+              GestureDetector(
+                onTap: saving ? null : () async {
+                  if (nameCtrl.text.trim().isEmpty || fishCtrl.text.trim().isEmpty) return;
+                  setState(() => saving = true);
+                  final err = await HotspotService.add(
+                    name: nameCtrl.text.trim(),
+                    fish: fishCtrl.text.trim(),
+                  );
+                  if (err != null && ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text(err), backgroundColor: FishdexTheme.coral));
+                  } else if (ctx.mounted) {
+                    Navigator.pop(ctx);
+                  }
+                  if (ctx.mounted) setState(() => saving = false);
+                },
+                child: Container(
+                  width: double.infinity, height: 52,
+                  decoration: BoxDecoration(
+                    color: saving ? FishdexTheme.primary.withOpacity(0.5) : FishdexTheme.primary,
+                    borderRadius: BorderRadius.circular(16)),
+                  child: Center(child: saving
+                    ? const CupertinoActivityIndicator(color: Colors.white)
+                    : const Text('Ajouter le spot',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16))),
+                ),
+              ),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _spotField(String label, TextEditingController ctrl, String hint) =>
+    Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.black.withOpacity(0.07)),
+      ),
+      child: TextField(
+        controller: ctrl,
+        style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15),
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          hintStyle: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 13),
+          labelStyle: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+        ),
+      ),
+    );
+
+  // ── Notifications ────────────────────────────────────────────────────
   void _showNotifications(BuildContext context) {
     if (!AuthService.isLoggedIn) {
       showModalBottomSheet(
@@ -644,16 +795,19 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2))),
             const Text('🔔', style: TextStyle(fontSize: 44)),
             const SizedBox(height: 16),
-            const Text('Notifications', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
+            const Text('Notifications',
+              style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
-            const Text('Connecte-toi pour voir tes notifications', textAlign: TextAlign.center,
+            const Text('Connecte-toi pour voir tes notifications',
+              textAlign: TextAlign.center,
               style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
             const SizedBox(height: 24),
             SizedBox(width: double.infinity, child: GestureDetector(
               onTap: () => Navigator.pop(context),
               child: Container(height: 50,
                 decoration: BoxDecoration(color: FishdexTheme.primary, borderRadius: BorderRadius.circular(16)),
-                child: const Center(child: Text('OK', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)))),
+                child: const Center(child: Text('OK',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)))),
             )),
             const SizedBox(height: 8),
           ]),
@@ -680,32 +834,36 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Feed card avec likes/commentaires ────────────────────────────────
+// ── Feed card ────────────────────────────────────────────────────────────
 class _FeedCard extends StatelessWidget {
   final FishCatch catch_;
   const _FeedCard({required this.catch_});
 
   @override
   Widget build(BuildContext context) {
-    final isLiked  = catch_.likedBy.contains(AuthService.currentUserId);
-    final likesCnt = catch_.likedBy.length;
+    final isLiked     = catch_.likedBy.contains(AuthService.currentUserId);
+    final likesCnt    = catch_.likedBy.length;
     final commentsCnt = catch_.commentsCount;
 
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: catch_)),
-      ),
+      onTap: () => Navigator.push(context,
+          CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: catch_))),
       child: GlassCard(
         radius: 20,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Auteur + date
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-              child: Row(
-                children: [
+            // Auteur + date (tappable → profil)
+            GestureDetector(
+              onTap: catch_.userId.isNotEmpty ? () => Navigator.push(context,
+                  CupertinoPageRoute(builder: (_) => UserProfileScreen(
+                    userId: catch_.userId,
+                    displayName: catch_.userName,
+                    userHandle: catch_.userHandle,
+                  ))) : null,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                child: Row(children: [
                   Container(
                     width: 36, height: 36,
                     decoration: const BoxDecoration(
@@ -715,18 +873,15 @@ class _FeedCard extends StatelessWidget {
                     child: const Center(child: Text('🎣', style: TextStyle(fontSize: 18))),
                   ),
                   const SizedBox(width: 10),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(catch_.userName,
-                        style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
-                      if (catch_.userHandle.isNotEmpty)
-                        Text('@${catch_.userHandle}',
-                          style: const TextStyle(color: FishdexTheme.primary, fontSize: 10, fontWeight: FontWeight.w500)),
-                      Text(_ago(catch_.timestamp),
-                        style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
-                    ],
-                  )),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(catch_.userName,
+                      style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
+                    if (catch_.userHandle.isNotEmpty)
+                      Text('@${catch_.userHandle}',
+                        style: const TextStyle(color: FishdexTheme.primary, fontSize: 10, fontWeight: FontWeight.w500)),
+                    Text(_ago(catch_.timestamp),
+                      style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+                  ])),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -740,7 +895,7 @@ class _FeedCard extends StatelessWidget {
                         color: catch_.isPrivate ? FishdexTheme.golden : FishdexTheme.mint,
                         fontSize: 10, fontWeight: FontWeight.w600)),
                   ),
-                ],
+                ]),
               ),
             ),
 
@@ -748,90 +903,102 @@ class _FeedCard extends StatelessWidget {
             if (catch_.imageBase64 != null || catch_.fishImageUrl != null)
               SizedBox(height: 200, width: double.infinity, child: _photo()),
 
-            // Infos + likes/commentaires
+            // Infos + social
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(catch_.frenchName,
-                    style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
-                  Text(catch_.species,
-                    style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(catch_.frenchName,
+                  style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+                Text(catch_.species,
+                  style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 4, children: [
+                  if (catch_.location != null) _chip('📍 ${catch_.location!}', FishdexTheme.primary),
+                  if (catch_.weightkg != null) _chip('⚖️ ${catch_.weightkg} kg', FishdexTheme.mint),
+                  if (catch_.sizecm   != null) _chip('📏 ${catch_.sizecm} cm',   FishdexTheme.coral),
+                ]),
+                if (catch_.notes != null) ...[
                   const SizedBox(height: 8),
-                  Wrap(spacing: 8, runSpacing: 4, children: [
-                    if (catch_.location != null) _chip('📍 ${catch_.location!}', FishdexTheme.primary),
-                    if (catch_.weightkg != null) _chip('⚖️ ${catch_.weightkg} kg', FishdexTheme.mint),
-                    if (catch_.sizecm   != null) _chip('📏 ${catch_.sizecm} cm',   FishdexTheme.coral),
-                  ]),
-                  if (catch_.notes != null) ...[
-                    const SizedBox(height: 8),
-                    Text(catch_.notes!, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
-                  ],
+                  Text(catch_.notes!, maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
+                ],
 
-                  // Séparateur + likes/commentaires
-                  const SizedBox(height: 12),
-                  Divider(color: Colors.black.withOpacity(0.05), height: 1),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      // Like
-                      GestureDetector(
-                        onTap: () {
-                          if (!AuthService.isLoggedIn) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                              content: Text('Connecte-toi pour liker'),
-                              duration: Duration(seconds: 2)));
-                            return;
-                          }
-                          if (catch_.id != null) {
-                            SocialService.toggleLike(catch_.id!, catch_.userId, catch_.frenchName);
-                          }
-                        },
-                        child: Row(
-                          children: [
-                            Icon(
-                              isLiked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-                              color: isLiked ? FishdexTheme.coral : FishdexTheme.textTertiary,
-                              size: 20),
-                            const SizedBox(width: 5),
-                            Text('$likesCnt',
-                              style: TextStyle(
-                                color: isLiked ? FishdexTheme.coral : FishdexTheme.textTertiary,
-                                fontSize: 13, fontWeight: FontWeight.w600)),
-                          ],
+                const SizedBox(height: 12),
+                Divider(color: Colors.black.withOpacity(0.05), height: 1),
+                const SizedBox(height: 10),
+
+                // Likes + commentaires
+                Row(children: [
+                  GestureDetector(
+                    onTap: () {
+                      if (!AuthService.isLoggedIn) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Connecte-toi pour liker'),
+                          duration: Duration(seconds: 2)));
+                        return;
+                      }
+                      if (catch_.id != null) {
+                        SocialService.toggleLike(catch_.id!, catch_.userId, catch_.frenchName);
+                      }
+                    },
+                    child: Row(children: [
+                      Icon(
+                        isLiked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                        color: isLiked ? FishdexTheme.coral : FishdexTheme.textTertiary,
+                        size: 20),
+                      const SizedBox(width: 5),
+                      Text('$likesCnt',
+                        style: TextStyle(
+                          color: isLiked ? FishdexTheme.coral : FishdexTheme.textTertiary,
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                  const SizedBox(width: 20),
+                  GestureDetector(
+                    onTap: () {
+                      if (catch_.id == null) return;
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => _CommentsSheet(
+                          catchId: catch_.id!,
+                          ownerUserId: catch_.userId,
+                          catchName: catch_.frenchName,
                         ),
-                      ),
-                      const SizedBox(width: 20),
-                      // Commentaire
-                      GestureDetector(
-                        onTap: () {
-                          if (catch_.id == null) return;
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => _CommentsSheet(
-                              catchId: catch_.id!,
-                              ownerUserId: catch_.userId,
-                              catchName: catch_.frenchName,
-                            ),
-                          );
-                        },
-                        child: Row(
-                          children: [
-                            const Icon(CupertinoIcons.chat_bubble, color: FishdexTheme.textTertiary, size: 19),
-                            const SizedBox(width: 5),
-                            Text('$commentsCnt',
-                              style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 13, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                      ),
-                    ],
+                      );
+                    },
+                    child: Row(children: [
+                      const Icon(CupertinoIcons.chat_bubble, color: FishdexTheme.textTertiary, size: 19),
+                      const SizedBox(width: 5),
+                      Text('$commentsCnt',
+                        style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 13, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                ]),
+
+                // Aperçu du dernier commentaire
+                if (catch_.lastCommentText != null && catch_.lastCommentText!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  RichText(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    text: TextSpan(
+                      style: const TextStyle(fontSize: 12),
+                      children: [
+                        if (catch_.lastCommentUser != null && catch_.lastCommentUser!.isNotEmpty)
+                          TextSpan(
+                            text: '@${catch_.lastCommentUser} ',
+                            style: const TextStyle(
+                              color: FishdexTheme.primary, fontWeight: FontWeight.w600)),
+                        TextSpan(
+                          text: '« ${catch_.lastCommentText} »',
+                          style: const TextStyle(color: FishdexTheme.textSecondary)),
+                      ],
+                    ),
                   ),
                 ],
-              ),
+              ]),
             ),
           ],
         ),
@@ -864,7 +1031,7 @@ class _FeedCard extends StatelessWidget {
   }
 }
 
-// ── Feuille de commentaires ──────────────────────────────────────────
+// ── Feuille de commentaires ──────────────────────────────────────────────
 class _CommentsSheet extends StatefulWidget {
   final String catchId, ownerUserId, catchName;
   const _CommentsSheet({required this.catchId, required this.ownerUserId, required this.catchName});
@@ -876,7 +1043,6 @@ class _CommentsSheet extends StatefulWidget {
 class _CommentsSheetState extends State<_CommentsSheet> {
   final _ctrl    = TextEditingController();
   bool  _sending = false;
-  // edit mode
   String? _editingId;
   final _editCtrl = TextEditingController();
 
@@ -907,8 +1073,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
 
   Future<void> _saveEdit(String commentId) async {
     if (_editCtrl.text.trim().isEmpty) return;
-    final err = await SocialService.editComment(
-        widget.catchId, commentId, _editCtrl.text);
+    final err = await SocialService.editComment(widget.catchId, commentId, _editCtrl.text);
     if (err != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur: $err'), backgroundColor: FishdexTheme.coral));
@@ -935,133 +1100,116 @@ class _CommentsSheetState extends State<_CommentsSheet> {
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       padding: EdgeInsets.fromLTRB(0, 0, 0, bottom),
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.all(Radius.circular(28)),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          Center(child: Container(width: 36, height: 4,
-            decoration: BoxDecoration(color: Colors.black.withOpacity(0.12), borderRadius: BorderRadius.circular(2)))),
-          const SizedBox(height: 12),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Row(children: [
-              Text('Commentaires', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
-            ]),
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.all(Radius.circular(28))),
+      child: Column(children: [
+        const SizedBox(height: 12),
+        Center(child: Container(width: 36, height: 4,
+          decoration: BoxDecoration(color: Colors.black.withOpacity(0.12), borderRadius: BorderRadius.circular(2)))),
+        const SizedBox(height: 12),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Row(children: [
+            Text('Commentaires', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+        const SizedBox(height: 8),
+        Divider(height: 1, color: Colors.black.withOpacity(0.06)),
+        Expanded(
+          child: StreamBuilder<List<Comment>>(
+            stream: SocialService.commentsStream(widget.catchId),
+            builder: (context, snap) {
+              if (snap.hasError) {
+                return Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Erreur: ${snap.error}', textAlign: TextAlign.center,
+                    style: const TextStyle(color: FishdexTheme.coral, fontSize: 13))));
+              }
+              final comments = snap.data ?? [];
+              if (comments.isEmpty) {
+                return const Center(child: Text('Aucun commentaire\nSois le premier !',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 14)));
+              }
+              return ListView.builder(
+                itemCount: comments.length,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                itemBuilder: (_, i) {
+                  final c   = comments[i];
+                  final own = c.userId == AuthService.currentUserId;
+                  if (_editingId == c.id) return _editRow(c);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Container(width: 32, height: 32,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary.withOpacity(0.10)),
+                        child: const Center(child: Text('🎣', style: TextStyle(fontSize: 16)))),
+                      const SizedBox(width: 10),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Text(c.userName,
+                            style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                          const SizedBox(width: 8),
+                          Text(_ago(c.timestamp),
+                            style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+                        ]),
+                        Text(c.text, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
+                      ])),
+                      if (own) ...[
+                        GestureDetector(
+                          onTap: () => setState(() { _editingId = c.id; _editCtrl.text = c.text; }),
+                          child: const Padding(padding: EdgeInsets.all(4),
+                            child: Icon(CupertinoIcons.pencil, color: FishdexTheme.primary, size: 15))),
+                        GestureDetector(
+                          onTap: () => _deleteComment(c.id),
+                          child: const Padding(padding: EdgeInsets.all(4),
+                            child: Icon(CupertinoIcons.trash, color: FishdexTheme.coral, size: 15))),
+                      ],
+                    ]),
+                  );
+                },
+              );
+            },
           ),
-          const SizedBox(height: 8),
-          Divider(height: 1, color: Colors.black.withOpacity(0.06)),
-          Expanded(
-            child: StreamBuilder<List<Comment>>(
-              stream: SocialService.commentsStream(widget.catchId),
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return Center(child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text('Erreur: ${snap.error}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: FishdexTheme.coral, fontSize: 13))));
-                }
-                final comments = snap.data ?? [];
-                if (comments.isEmpty) {
-                  return const Center(
-                    child: Text('Aucun commentaire\nSois le premier !',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 14)));
-                }
-                return ListView.builder(
-                  itemCount: comments.length,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  itemBuilder: (_, i) {
-                    final c   = comments[i];
-                    final own = c.userId == AuthService.currentUserId;
-                    if (_editingId == c.id) {
-                      return _editRow(c);
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(width: 32, height: 32,
-                            decoration: BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary.withOpacity(0.10)),
-                            child: const Center(child: Text('🎣', style: TextStyle(fontSize: 16)))),
-                          const SizedBox(width: 10),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Row(children: [
-                              Text(c.userName, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                              const SizedBox(width: 8),
-                              Text(_ago(c.timestamp), style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
-                            ]),
-                            Text(c.text, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
-                          ])),
-                          if (own) ...[
-                            GestureDetector(
-                              onTap: () => setState(() {
-                                _editingId = c.id;
-                                _editCtrl.text = c.text;
-                              }),
-                              child: const Padding(
-                                padding: EdgeInsets.all(4),
-                                child: Icon(CupertinoIcons.pencil, color: FishdexTheme.primary, size: 15))),
-                            GestureDetector(
-                              onTap: () => _deleteComment(c.id),
-                              child: const Padding(
-                                padding: EdgeInsets.all(4),
-                                child: Icon(CupertinoIcons.trash, color: FishdexTheme.coral, size: 15))),
-                          ],
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          Divider(height: 1, color: Colors.black.withOpacity(0.06)),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.04),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: TextField(
-                      controller: _ctrl,
-                      decoration: const InputDecoration(
-                        hintText: 'Ajouter un commentaire…',
-                        hintStyle: TextStyle(color: FishdexTheme.textTertiary),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      ),
-                      style: const TextStyle(fontSize: 14, color: FishdexTheme.textPrimary),
-                      onSubmitted: (_) => _send(),
-                    ),
-                  ),
+        ),
+        Divider(height: 1, color: Colors.black.withOpacity(0.06)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Row(children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _sending ? null : _send,
-                  child: Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _sending ? FishdexTheme.primary.withOpacity(0.5) : FishdexTheme.primary),
-                    child: _sending
-                        ? const CupertinoActivityIndicator(color: Colors.white)
-                        : const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 16),
+                child: TextField(
+                  controller: _ctrl,
+                  decoration: const InputDecoration(
+                    hintText: 'Ajouter un commentaire…',
+                    hintStyle: TextStyle(color: FishdexTheme.textTertiary),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   ),
+                  style: const TextStyle(fontSize: 14, color: FishdexTheme.textPrimary),
+                  onSubmitted: (_) => _send(),
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _sending ? null : _send,
+              child: Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _sending ? FishdexTheme.primary.withOpacity(0.5) : FishdexTheme.primary),
+                child: _sending
+                    ? const CupertinoActivityIndicator(color: Colors.white)
+                    : const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 16),
+              ),
+            ),
+          ]),
+        ),
+      ]),
     );
   }
 
@@ -1082,8 +1230,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
               style: const TextStyle(fontSize: 13, color: FishdexTheme.textPrimary),
               decoration: const InputDecoration(
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
             ),
           ),
         ),
@@ -1111,7 +1258,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   }
 }
 
-// ── Feuille de notifications ─────────────────────────────────────────
+// ── Feuille de notifications ──────────────────────────────────────────────
 class _NotificationsSheet extends StatelessWidget {
   const _NotificationsSheet();
 
@@ -1121,100 +1268,91 @@ class _NotificationsSheet extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
       decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.all(Radius.circular(28))),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          Center(child: Container(width: 36, height: 4,
-            decoration: BoxDecoration(color: Colors.black.withOpacity(0.12), borderRadius: BorderRadius.circular(2)))),
-          const SizedBox(height: 12),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Row(children: [
-              Text('🔔', style: TextStyle(fontSize: 18)),
-              SizedBox(width: 8),
-              Text('Notifications', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
-            ]),
-          ),
-          Divider(height: 20, color: Colors.black.withOpacity(0.06)),
-          Expanded(
-            child: StreamBuilder<List<AppNotification>>(
-              stream: SocialService.notificationsStream(),
-              builder: (context, snap) {
-                final notifs = snap.data ?? [];
-                if (notifs.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('🎣', style: TextStyle(fontSize: 36)),
-                        SizedBox(height: 8),
-                        Text('Aucune notification pour l\'instant',
-                          style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
-                      ],
+      child: Column(children: [
+        const SizedBox(height: 12),
+        Center(child: Container(width: 36, height: 4,
+          decoration: BoxDecoration(color: Colors.black.withOpacity(0.12), borderRadius: BorderRadius.circular(2)))),
+        const SizedBox(height: 12),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Row(children: [
+            Text('🔔', style: TextStyle(fontSize: 18)),
+            SizedBox(width: 8),
+            Text('Notifications', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+        Divider(height: 20, color: Colors.black.withOpacity(0.06)),
+        Expanded(
+          child: StreamBuilder<List<AppNotification>>(
+            stream: SocialService.notificationsStream(),
+            builder: (context, snap) {
+              final notifs = snap.data ?? [];
+              if (notifs.isEmpty) {
+                return const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text('🎣', style: TextStyle(fontSize: 36)),
+                  SizedBox(height: 8),
+                  Text('Aucune notification pour l\'instant',
+                    style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+                ]));
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                itemCount: notifs.length,
+                itemBuilder: (context, i) {
+                  final n      = notifs[i];
+                  final isLike = n.type == 'like';
+                  return GestureDetector(
+                    onTap: () async {
+                      Navigator.pop(context);
+                      final catch_ = await CatchService.getById(n.catchId);
+                      if (catch_ != null && context.mounted) {
+                        Navigator.push(context,
+                            CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: catch_)));
+                      }
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: n.read ? Colors.transparent : FishdexTheme.primary.withOpacity(0.04),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.black.withOpacity(0.05)),
+                      ),
+                      child: Row(children: [
+                        Container(width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: (isLike ? FishdexTheme.coral : FishdexTheme.primary).withOpacity(0.10)),
+                          child: Center(child: Text(isLike ? '❤️' : '💬',
+                            style: const TextStyle(fontSize: 16)))),
+                        const SizedBox(width: 12),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          RichText(text: TextSpan(
+                            style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13),
+                            children: [
+                              TextSpan(text: n.fromUserName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                              TextSpan(text: isLike ? ' a aimé ta prise ' : ' a commenté ta prise '),
+                              TextSpan(text: n.catchName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            ],
+                          )),
+                          if (n.commentText != null)
+                            Text('« ${n.commentText} »',
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+                        ])),
+                        if (!n.read)
+                          Container(width: 8, height: 8,
+                            decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary)),
+                      ]),
                     ),
                   );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  itemCount: notifs.length,
-                  itemBuilder: (context, i) {
-                    final n = notifs[i];
-                    final isLike = n.type == 'like';
-                    return GestureDetector(
-                      onTap: () async {
-                        Navigator.pop(context);
-                        final catch_ = await CatchService.getById(n.catchId);
-                        if (catch_ != null && context.mounted) {
-                          Navigator.push(context,
-                              CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: catch_)));
-                        }
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: n.read ? Colors.transparent : FishdexTheme.primary.withOpacity(0.04),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.black.withOpacity(0.05)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(width: 36, height: 36,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: (isLike ? FishdexTheme.coral : FishdexTheme.primary).withOpacity(0.10)),
-                              child: Center(child: Text(isLike ? '❤️' : '💬',
-                                style: const TextStyle(fontSize: 16)))),
-                            const SizedBox(width: 12),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              RichText(text: TextSpan(
-                                style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13),
-                                children: [
-                                  TextSpan(text: n.fromUserName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                  TextSpan(text: isLike ? ' a aimé ta prise ' : ' a commenté ta prise '),
-                                  TextSpan(text: n.catchName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                ],
-                              )),
-                              if (n.commentText != null)
-                                Text('« ${n.commentText} »',
-                                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
-                            ])),
-                            if (!n.read)
-                              Container(width: 8, height: 8,
-                                decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary)),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                },
+              );
+            },
           ),
-          const SizedBox(height: 8),
-        ],
-      ),
+        ),
+        const SizedBox(height: 8),
+      ]),
     );
   }
 }
@@ -1226,7 +1364,7 @@ class _HotSpot {
 }
 
 class _AchievementDef {
-  final String emoji, label;
+  final String emoji, label, description;
   final bool unlocked;
-  const _AchievementDef(this.emoji, this.label, this.unlocked);
+  const _AchievementDef(this.emoji, this.label, this.description, this.unlocked);
 }

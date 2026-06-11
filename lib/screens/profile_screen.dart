@@ -6,6 +6,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/catch_model.dart';
 import '../services/auth_service.dart';
 import '../services/catch_service.dart';
+import '../services/follow_service.dart';
+import '../services/hotspot_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 import 'catch_detail_screen.dart';
@@ -103,8 +105,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SliverToBoxAdapter(child: _buildHeader(user, catches)),
                 SliverToBoxAdapter(child: _buildStats(catches)),
                 SliverToBoxAdapter(child: _buildTabBar()),
-                if (_tab == 0) _buildCollectionGrid(catches, context),
-                if (_tab == 1) _buildAchievements(catches),
+                if (_tab == 0) _buildAchievements(context, catches),
+                if (_tab == 1) _buildCollectionGrid(catches, context),
+                if (_tab == 2) _buildHotspotsTab(user, context),
                 SliverToBoxAdapter(child: _buildVersionFooter(context)),
               ],
             );
@@ -208,9 +211,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 16),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          _followStat('842', 'Abonnés'),
+          StreamBuilder<int>(
+            stream: FollowService.followersCountStream(user.uid),
+            builder: (_, s) => _followStat('${s.data ?? 0}', 'Abonnés'),
+          ),
           _divider(),
-          _followStat('234', 'Abonnements'),
+          StreamBuilder<int>(
+            stream: FollowService.followingCountStream(user.uid),
+            builder: (_, s) => _followStat('${s.data ?? 0}', 'Abonnements'),
+          ),
           _divider(),
           _followStat('$speciesCount', 'Espèces'),
         ]),
@@ -269,7 +278,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
     child: GlassCard(radius: 18,
       child: Padding(padding: const EdgeInsets.all(4),
-        child: Row(children: [_tabBtn('Ma Collection', 0), _tabBtn('Succès', 1)]))));
+        child: Row(children: [
+          _tabBtn('Succès',      0),
+          _tabBtn('Collection',  1),
+          _tabBtn('Mes Spots',   2),
+        ]))));
 
   Widget _tabBtn(String label, int i) {
     final sel = _tab == i;
@@ -285,7 +298,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         child: Center(child: Text(label, style: TextStyle(
           color: sel ? Colors.white : FishdexTheme.textSecondary,
-          fontWeight: sel ? FontWeight.w700 : FontWeight.w400, fontSize: 14))),
+          fontWeight: sel ? FontWeight.w700 : FontWeight.w400, fontSize: 13))),
       ),
     ));
   }
@@ -343,7 +356,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     color: FishdexTheme.primary.withOpacity(0.06),
     child: const Center(child: Text('🐟', style: TextStyle(fontSize: 22))));
 
-  Widget _buildAchievements(List<FishCatch> catches) {
+  Widget _buildAchievements(BuildContext context, List<FishCatch> catches) {
     final list = [
       _Achievement('Premier Lancer',  'Ta première prise !',             '🎣', catches.isNotEmpty),
       _Achievement('Collectionneur',  '5 prises enregistrées',           '📖', catches.length >= 5),
@@ -354,27 +367,168 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       sliver: SliverList(delegate: SliverChildBuilderDelegate(
-        (context, i) => Padding(padding: const EdgeInsets.only(bottom: 10),
-          child: GlassCard(borderColor: list[i].unlocked ? FishdexTheme.golden.withOpacity(0.3) : null,
-            child: Padding(padding: const EdgeInsets.all(14),
-              child: Row(children: [
-                Container(width: 48, height: 48,
-                  decoration: BoxDecoration(shape: BoxShape.circle,
-                    color: list[i].unlocked ? FishdexTheme.golden.withOpacity(0.12) : Colors.black.withOpacity(0.04)),
-                  child: Center(child: Text(list[i].unlocked ? list[i].emoji : '🔒',
-                    style: const TextStyle(fontSize: 24)))),
-                const SizedBox(width: 14),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(list[i].title, style: TextStyle(
-                    color: list[i].unlocked ? FishdexTheme.textPrimary : FishdexTheme.textSecondary,
-                    fontSize: 14, fontWeight: FontWeight.w600)),
-                  Text(list[i].desc, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
-                ])),
-                if (list[i].unlocked) const Icon(CupertinoIcons.checkmark_circle_fill, color: FishdexTheme.golden, size: 20),
-              ])))
+        (ctx, i) => Padding(padding: const EdgeInsets.only(bottom: 10),
+          child: GestureDetector(
+            onTap: () => _showAchievementPopup(context, list[i]),
+            child: GlassCard(borderColor: list[i].unlocked ? FishdexTheme.golden.withOpacity(0.3) : null,
+              child: Padding(padding: const EdgeInsets.all(14),
+                child: Row(children: [
+                  Container(width: 48, height: 48,
+                    decoration: BoxDecoration(shape: BoxShape.circle,
+                      color: list[i].unlocked ? FishdexTheme.golden.withOpacity(0.12) : Colors.black.withOpacity(0.04)),
+                    child: Center(child: Text(list[i].unlocked ? list[i].emoji : '🔒',
+                      style: const TextStyle(fontSize: 24)))),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(list[i].title, style: TextStyle(
+                      color: list[i].unlocked ? FishdexTheme.textPrimary : FishdexTheme.textSecondary,
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+                    Text(list[i].desc, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
+                  ])),
+                  if (list[i].unlocked)
+                    const Icon(CupertinoIcons.checkmark_circle_fill, color: FishdexTheme.golden, size: 20)
+                  else
+                    const Icon(CupertinoIcons.chevron_right, color: FishdexTheme.textTertiary, size: 14),
+                ]))),
           ),
+        ),
         childCount: list.length,
       )),
+    );
+  }
+
+  void _showAchievementPopup(BuildContext context, _Achievement a) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.all(Radius.circular(28)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Center(child: Container(width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2)))),
+          Text(a.unlocked ? a.emoji : '🔒', style: const TextStyle(fontSize: 52)),
+          const SizedBox(height: 14),
+          Text(a.title, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            decoration: BoxDecoration(
+              color: a.unlocked ? FishdexTheme.golden.withOpacity(0.09) : Colors.black.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              a.unlocked
+                  ? '✅ Obtenu en : ${a.desc.toLowerCase()}'
+                  : '🎯 Objectif : ${a.desc}',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: a.unlocked ? FishdexTheme.golden : FishdexTheme.textSecondary,
+                fontSize: 14, fontWeight: FontWeight.w500)),
+          ),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: double.infinity, height: 50,
+              decoration: BoxDecoration(
+                color: a.unlocked ? FishdexTheme.golden : FishdexTheme.primary,
+                borderRadius: BorderRadius.circular(16)),
+              child: const Center(child: Text('OK',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16))),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildHotspotsTab(User user, BuildContext context) {
+    return StreamBuilder<List<Hotspot>>(
+      stream: HotspotService.userStream(user.uid),
+      builder: (context, snap) {
+        final spots = snap.data ?? [];
+        if (spots.isEmpty) {
+          return SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+            child: GlassCard(child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(children: [
+                const Text('📍', style: TextStyle(fontSize: 40)),
+                const SizedBox(height: 12),
+                const Text('Aucun spot ajouté',
+                  style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 15)),
+                const SizedBox(height: 4),
+                const Text('Utilise le + dans l\'onglet Accueil pour partager un spot',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 12)),
+              ]),
+            )),
+          ));
+        }
+        return SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          sliver: SliverList(delegate: SliverChildBuilderDelegate(
+            (ctx, i) {
+              final spot = spots[i];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: GlassCard(child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(children: [
+                    Container(width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: FishdexTheme.primary.withOpacity(0.08)),
+                      child: const Center(child: Text('📍', style: TextStyle(fontSize: 20)))),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(spot.name,
+                        style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                      Text(spot.fish,
+                        style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
+                      Row(children: [
+                        const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 11),
+                        const SizedBox(width: 3),
+                        Text('${spot.rating.toStringAsFixed(1)}',
+                          style: const TextStyle(color: FishdexTheme.golden, fontSize: 11, fontWeight: FontWeight.w500)),
+                      ]),
+                    ])),
+                    GestureDetector(
+                      onTap: () async {
+                        final ok = await _showConfirmSheet(context,
+                          emoji: '🗑️',
+                          title: 'Supprimer ce spot ?',
+                          subtitle: spot.name,
+                          confirmLabel: 'Supprimer',
+                        );
+                        if (!ok) return;
+                        final err = await HotspotService.delete(spot.id, user.uid);
+                        if (err != null && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(err), backgroundColor: FishdexTheme.coral));
+                        }
+                      },
+                      child: Container(
+                        width: 34, height: 34,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: FishdexTheme.coral.withOpacity(0.10)),
+                        child: const Icon(CupertinoIcons.trash, color: FishdexTheme.coral, size: 15)),
+                    ),
+                  ]),
+                )),
+              );
+            },
+            childCount: spots.length,
+          )),
+        );
+      },
     );
   }
 

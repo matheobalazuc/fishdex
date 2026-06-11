@@ -22,6 +22,8 @@ class FishCatch {
   // Social (gérés par SocialService, jamais écrasés via toFirestore)
   final List<String> likedBy;
   final int commentsCount;
+  final String? lastCommentText;
+  final String? lastCommentUser;
 
   const FishCatch({
     this.id,
@@ -44,6 +46,8 @@ class FishCatch {
     this.isPrivate = false,
     this.likedBy = const [],
     this.commentsCount = 0,
+    this.lastCommentText,
+    this.lastCommentUser,
   });
 
   FishCatch copyWith({
@@ -83,10 +87,12 @@ class FishCatch {
     weightkg:     clearWeight  ? null : (weightkg ?? this.weightkg),
     location:     clearLocation? null : (location ?? this.location),
     notes:        clearNotes   ? null : (notes    ?? this.notes),
-    isPublished:  isPublished  ?? this.isPublished,
-    isPrivate:    isPrivate    ?? this.isPrivate,
-    likedBy:      likedBy      ?? this.likedBy,
-    commentsCount:commentsCount?? this.commentsCount,
+    isPublished:      isPublished      ?? this.isPublished,
+    isPrivate:        isPrivate        ?? this.isPrivate,
+    likedBy:          likedBy          ?? this.likedBy,
+    commentsCount:    commentsCount    ?? this.commentsCount,
+    lastCommentText:  lastCommentText  ?? this.lastCommentText,
+    lastCommentUser:  lastCommentUser  ?? this.lastCommentUser,
   );
 
   // likedBy / commentsCount gérés par SocialService → non inclus ici
@@ -131,7 +137,9 @@ class FishCatch {
     notes:        d['notes']     as String?,
     isPublished:  d['isPublished'] as bool? ?? false,
     isPrivate:    d['isPrivate']   as bool? ?? false,
-    likedBy:      List<String>.from(d['likedBy'] as List? ?? []),
-    commentsCount:(d['commentsCount'] as num?)?.toInt() ?? 0,
+    likedBy:          List<String>.from(d['likedBy'] as List? ?? []),
+    commentsCount:    (d['commentsCount']   as num?)?.toInt() ?? 0,
+    lastCommentText:  d['lastCommentText']  as String?,
+    lastCommentUser:  d['lastCommentUser']  as String?,
   );
 }

@@ -91,8 +91,11 @@ class SocialService {
         'text':      text.trim(),
         'timestamp': FieldValue.serverTimestamp(),
       });
-      await _db.collection('catches').doc(catchId)
-          .update({'commentsCount': FieldValue.increment(1)});
+      await _db.collection('catches').doc(catchId).update({
+        'commentsCount':   FieldValue.increment(1),
+        'lastCommentText': text.trim(),
+        'lastCommentUser': AuthService.currentUserHandle,
+      });
       if (uid != ownerUserId && ownerUserId.isNotEmpty) {
         await _db
             .collection('notifications').doc(ownerUserId)
