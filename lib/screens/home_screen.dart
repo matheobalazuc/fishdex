@@ -96,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── App bar ────────────────────────────────────────────────────────
+  // ── App bar ─────────────────────────────────
   Widget _buildAppBar() {
     return SliverAppBar(
       backgroundColor: Colors.transparent,

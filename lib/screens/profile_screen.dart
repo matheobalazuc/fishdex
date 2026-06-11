@@ -753,7 +753,7 @@ class _AuthViewState extends State<_AuthView> {
               const Text('Fishdex',
                 style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.8)),
               const SizedBox(height: 4),
-              const Text('Strava pour les pêcheurs',
+              const Text("La pêche n'a jamais été aussi simple !",
                 style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
               const SizedBox(height: 36),
 
