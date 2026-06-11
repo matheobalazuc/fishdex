@@ -1,57 +1,97 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/catch_model.dart';
+import '../services/auth_service.dart';
 import '../services/catch_service.dart';
+import '../services/social_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 import 'catch_detail_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late final Stream<List<FishCatch>>            _feedStream;
+  late final Stream<List<Map<String, dynamic>>> _topStream;
+  Stream<List<FishCatch>>?  _recentStream;
+  Stream<int>?              _notifStream;
+  late StreamSubscription<dynamic> _authSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _feedStream = CatchService.feedStream();
+    _topStream  = CatchService.topFishersStream();
+    _refreshAuthStreams();
+    _authSub = AuthService.authStateChanges.listen((_) {
+      if (mounted) setState(_refreshAuthStreams);
+    });
+  }
+
+  void _refreshAuthStreams() {
+    _recentStream = CatchService.recentStream(limit: 5);
+    _notifStream  = SocialService.unreadNotificationsStream();
+  }
+
+  @override
+  void dispose() {
+    _authSub.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
-        _buildHeader(context),
+        _buildAppBar(),
+        // 1. Fil des prises (en premier)
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-            child: _buildActivityBanner(),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: _buildFeed(),
           ),
         ),
+        // 2. Top pêcheurs (réels)
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: _buildStarRankingSection(),
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+            child: _buildTopFishers(),
           ),
         ),
+        // 3. Mes prises récentes
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-            child: _buildRecentCatches(),
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+            child: _buildMyRecent(),
           ),
         ),
+        // 4. Hot Spots
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 140),
             child: _buildHotSpots(),
           ),
         ),
-        _buildFeedSection(),
       ],
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  // ── App bar ────────────────────────────────────────────────────────
+  Widget _buildAppBar() {
     return SliverAppBar(
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
-      expandedHeight: 180,
+      expandedHeight: 140,
       pinned: true,
       elevation: 0,
       flexibleSpace: FlexibleSpaceBar(
@@ -64,51 +104,23 @@ class HomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: FishdexTheme.golden.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: FishdexTheme.golden.withOpacity(0.3),
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(CupertinoIcons.star_fill,
-                            color: FishdexTheme.golden, size: 12),
-                        SizedBox(width: 4),
-                        Text(
-                          'Niveau 12 — Maître Pêcheur',
-                          style: TextStyle(
-                            color: FishdexTheme.golden,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Bonjour, Alex 🎣',
-                    style: TextStyle(
-                      color: FishdexTheme.textPrimary,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.8,
-                    ),
+                  StreamBuilder<dynamic>(
+                    stream: AuthService.authStateChanges,
+                    builder: (context, authSnap) {
+                      final name = AuthService.isLoggedIn
+                          ? AuthService.currentUserName
+                          : 'Anonyme';
+                      return Text(
+                        'Bonjour, ${name.split(' ').first} 🎣',
+                        style: const TextStyle(
+                          color: FishdexTheme.textPrimary,
+                          fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.8),
+                      );
+                    },
                   ),
                   const SizedBox(height: 2),
-                  const Text(
-                    '3 nouvelles prises ce mois-ci',
-                    style: TextStyle(
-                      color: FishdexTheme.textSecondary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
+                  const Text('Fil des prises · Top pêcheurs',
+                    style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
                 ],
               ),
             ),
@@ -126,333 +138,335 @@ class HomeScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
+                  width: 28, height: 28,
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [FishdexTheme.primary, Color(0xFF00C6E0)],
-                    ),
+                    gradient: LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00C6E0)]),
                   ),
-                  child: const Center(
-                    child: Text('🐟', style: TextStyle(fontSize: 14)),
-                  ),
+                  child: const Center(child: Text('🐟', style: TextStyle(fontSize: 14))),
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Fishdex',
-                  style: TextStyle(
-                    color: FishdexTheme.textPrimary,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                const Text('Fishdex',
+                  style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
               ],
             ),
           ),
         ),
       ),
       actions: [
-        GestureDetector(
-          onTap: () {},
-          child: Container(
-            margin: const EdgeInsets.only(right: 16),
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.7),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+        StreamBuilder<int>(
+          stream: _notifStream ?? Stream.value(0),
+          builder: (context, snap) {
+            final count = snap.data ?? 0;
+            return GestureDetector(
+              onTap: () => _showNotifications(context),
+              child: Container(
+                margin: const EdgeInsets.only(right: 16),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 38, height: 38,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.7),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2))],
+                      ),
+                      child: const Icon(CupertinoIcons.bell, color: FishdexTheme.textPrimary, size: 18),
+                    ),
+                    if (count > 0)
+                      Positioned(
+                        top: -2, right: -2,
+                        child: Container(
+                          width: 16, height: 16,
+                          decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.coral),
+                          child: Center(child: Text('$count',
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800))),
+                        ),
+                      ),
+                  ],
                 ),
-              ],
-            ),
-            child: const Icon(
-              CupertinoIcons.bell,
-              color: FishdexTheme.textPrimary,
-              size: 18,
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ],
     );
   }
 
-  Widget _buildActivityBanner() {
+  // ── Fil des prises ─────────────────────────────────────────────────
+  Widget _buildFeed() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Fil des prises',
+          style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+        const SizedBox(height: 12),
+        StreamBuilder<List<FishCatch>>(
+          stream: _feedStream,
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CupertinoActivityIndicator(),
+              ));
+            }
+            final catches = snap.data ?? [];
+            if (catches.isEmpty) {
+              return GlassCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      const Text('🌊', style: TextStyle(fontSize: 36)),
+                      const SizedBox(height: 8),
+                      const Text('Aucune prise publiée pour l\'instant',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+                      const SizedBox(height: 4),
+                      const Text('Va dans ta collection et publie une prise !',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return Column(
+              children: catches.asMap().entries.map((e) =>
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _FeedCard(catch_: e.value)
+                      .animate()
+                      .fadeIn(delay: Duration(milliseconds: 60 * e.key))
+                      .slideY(begin: 0.06, end: 0),
+                ),
+              ).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // ── Top pêcheurs ───────────────────────────────────────────────────
+  Widget _buildTopFishers() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Top Pêcheurs',
+          style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+        const SizedBox(height: 12),
+        StreamBuilder<List<Map<String, dynamic>>>(
+          stream: _topStream,
+          builder: (context, snap) {
+            final fishers = snap.data ?? [];
+            if (fishers.isEmpty) {
+              return Column(
+                children: _staticTopFishers()
+                    .asMap().entries.map((e) =>
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: e.value.animate().fadeIn(delay: Duration(milliseconds: 80 * e.key)).slideX(begin: 0.06, end: 0),
+                  ),
+                ).toList(),
+              );
+            }
+            return Column(
+              children: fishers.asMap().entries.map((e) =>
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _buildFisherTile(e.key, e.value)
+                      .animate()
+                      .fadeIn(delay: Duration(milliseconds: 80 * e.key))
+                      .slideX(begin: 0.06, end: 0),
+                ),
+              ).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFisherTile(int index, Map<String, dynamic> f) {
+    final name  = f['displayName'] as String? ?? 'Pêcheur';
+    final count = (f['catchCount'] as num?)?.toInt() ?? 0;
+    final rank  = index + 1;
+    final rankColor = rank == 1 ? FishdexTheme.golden
+        : rank == 2 ? FishdexTheme.textSecondary
+        : FishdexTheme.coral;
     return GlassCard(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Row(
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 36, height: 36,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [FishdexTheme.primary, Color(0xFF00C6E0)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: rankColor.withOpacity(0.12),
+                border: Border.all(color: rankColor.withOpacity(0.3), width: 1.5),
               ),
-              child: const Center(child: Text('🎯', style: TextStyle(fontSize: 22))),
+              child: Center(child: Text('$rank',
+                style: TextStyle(color: rankColor, fontSize: 14, fontWeight: FontWeight.w800))),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
+            const Text('🎣', style: TextStyle(fontSize: 28)),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Objectif hebdo',
-                    style: TextStyle(
-                      color: FishdexTheme.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: 0.65,
-                      backgroundColor: FishdexTheme.primary.withOpacity(0.12),
-                      color: FishdexTheme.primary,
-                      minHeight: 6,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '5/8 prises · encore 3 pour le badge',
-                    style: TextStyle(
-                      color: FishdexTheme.textSecondary,
-                      fontSize: 12,
-                    ),
+                  Text(name,
+                    style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+                  Row(
+                    children: [
+                      const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 11),
+                      const SizedBox(width: 3),
+                      Text('$count prise${count > 1 ? "s" : ""}',
+                        style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
+                    ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            Text(
-              '65%',
-              style: TextStyle(
-                color: FishdexTheme.primary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
           ],
         ),
       ),
-    ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1, end: 0);
+    );
   }
 
-  Widget _buildStarRankingSection() {
-    final topFishers = [
-      _Fisher('@leBrochet', 2847, '🎣', FishdexTheme.golden, 1),
-      _Fisher('@mariePêche', 2561, '🐟', FishdexTheme.textSecondary, 2),
-      _Fisher('@surfcaster33', 2340, '🎣', FishdexTheme.coral, 3),
-    ];
+  List<Widget> _staticTopFishers() => [
+    _staticFisherTile(1, '@leBrochet',     2847, FishdexTheme.golden),
+    _staticFisherTile(2, '@mariePêche',    2561, FishdexTheme.textSecondary),
+    _staticFisherTile(3, '@surfcaster33',  2340, FishdexTheme.coral),
+  ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _staticFisherTile(int rank, String name, int pts, Color color) =>
+    GlassCard(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
           children: [
-            const Text(
-              'Top Pêcheurs',
-              style: TextStyle(
-                color: FishdexTheme.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.3,
-              ),
-            ),
-            GestureDetector(
-              onTap: () {},
-              child: Text(
-                'Voir tout',
-                style: TextStyle(
-                  color: FishdexTheme.primary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
+            Container(width: 36, height: 36,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.12),
+                border: Border.all(color: color.withOpacity(0.3), width: 1.5)),
+              child: Center(child: Text('$rank', style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w800)))),
+            const SizedBox(width: 12),
+            const Text('🎣', style: TextStyle(fontSize: 28)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+              Row(children: [
+                const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 11),
+                const SizedBox(width: 3),
+                Text('$pts pts', style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
+              ]),
+            ])),
           ],
         ),
-        const SizedBox(height: 12),
-        ...topFishers.asMap().entries.map((e) {
-          final fisher = e.value;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: GlassCard(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: fisher.color.withOpacity(0.12),
-                        border: Border.all(
-                            color: fisher.color.withOpacity(0.3), width: 1.5),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${fisher.rank}',
-                          style: TextStyle(
-                            color: fisher.color,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(fisher.emoji, style: const TextStyle(fontSize: 28)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            fisher.name,
-                            style: const TextStyle(
-                              color: FishdexTheme.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              const Icon(CupertinoIcons.star_fill,
-                                  color: FishdexTheme.golden, size: 11),
-                              const SizedBox(width: 3),
-                              Text(
-                                '${fisher.score} pts',
-                                style: const TextStyle(
-                                  color: FishdexTheme.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: FishdexTheme.primary.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: FishdexTheme.primary.withOpacity(0.15),
-                        ),
-                      ),
-                      child: Text(
-                        'Suivre',
-                        style: TextStyle(
-                          color: FishdexTheme.primary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          )
-              .animate()
-              .fadeIn(delay: Duration(milliseconds: 80 * e.key))
-              .slideX(begin: 0.08, end: 0);
-        }),
-      ],
+      ),
     );
-  }
 
-  Widget _buildRecentCatches() {
+  // ── Mes prises récentes ────────────────────────────────────────────
+  Widget _buildMyRecent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Prises récentes',
-          style: TextStyle(
-            color: FishdexTheme.textPrimary,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.3,
-          ),
-        ),
+        const Text('Mes prises récentes',
+          style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 150,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            children: [
-              _buildCatchCard('🐟', 'Brochet', '4.2 kg', 'Il y a 2h', FishdexTheme.primary),
-              _buildCatchCard('🦈', 'Bar', '2.8 kg', 'Hier', FishdexTheme.mint),
-              _buildCatchCard('🐠', 'Truite', '1.5 kg', 'Il y a 2j', FishdexTheme.golden),
-              _buildCatchCard('🐡', 'Carpe', '6.1 kg', 'Il y a 3j', FishdexTheme.coral),
-            ],
-          ),
+        StreamBuilder<List<FishCatch>>(
+          stream: _recentStream ?? Stream.value([]),
+          builder: (context, snap) {
+            if (!AuthService.isLoggedIn) {
+              return GlassCard(
+                child: const Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Row(
+                    children: [
+                      Text('🔒', style: TextStyle(fontSize: 24)),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Connecte-toi pour voir tes prises récentes',
+                        style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13))),
+                    ],
+                  ),
+                ),
+              );
+            }
+            final catches = snap.data ?? [];
+            if (catches.isEmpty) {
+              return GlassCard(
+                child: const Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Text('Aucune prise pour l\'instant. Utilise la caméra !',
+                    style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13),
+                    textAlign: TextAlign.center),
+                ),
+              );
+            }
+            return SizedBox(
+              height: 150,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                children: catches.map((c) => _buildRecentTile(c)).toList(),
+              ),
+            );
+          },
         ),
       ],
     );
   }
 
-  Widget _buildCatchCard(String emoji, String name, String weight, String time, Color accent) {
-    return Container(
-      width: 120,
-      margin: const EdgeInsets.only(right: 12),
-      child: GlassCard(
-        radius: 20,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 36)),
-              const Spacer(),
-              Text(
-                name,
-                style: const TextStyle(
-                  color: FishdexTheme.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+  Widget _buildRecentTile(FishCatch c) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: c)),
+      ),
+      child: Container(
+        width: 120,
+        margin: const EdgeInsets.only(right: 12),
+        child: GlassCard(
+          radius: 20,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(width: double.infinity, height: 60, child: _catchThumb(c)),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                weight,
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                time,
-                style: const TextStyle(
-                  color: FishdexTheme.textTertiary,
-                  fontSize: 10,
-                ),
-              ),
-            ],
+                const Spacer(),
+                Text(c.frenchName,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
+                if (c.weightkg != null)
+                  Text('${c.weightkg} kg',
+                    style: const TextStyle(color: FishdexTheme.primary, fontSize: 11, fontWeight: FontWeight.w600)),
+                Text(_ago(c.timestamp),
+                  style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 9)),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  Widget _catchThumb(FishCatch c) {
+    if (c.imageBase64 != null && c.imageBase64!.isNotEmpty) {
+      try { return Image.memory(base64Decode(c.imageBase64!), fit: BoxFit.cover, width: double.infinity); } catch (_) {}
+    }
+    if (c.fishImageUrl != null) return Image.network(c.fishImageUrl!, fit: BoxFit.cover, width: double.infinity);
+    return Container(color: FishdexTheme.primary.withOpacity(0.07),
+      child: const Center(child: Text('🐟', style: TextStyle(fontSize: 26))));
+  }
+
+  // ── Hot Spots (statique) ───────────────────────────────────────────
   Widget _buildHotSpots() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -460,15 +474,8 @@ class HomeScreen extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Hot Spots',
-              style: TextStyle(
-                color: FishdexTheme.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.3,
-              ),
-            ),
+            const Text('Hot Spots',
+              style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
@@ -476,21 +483,11 @@ class HomeScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: FishdexTheme.coral.withOpacity(0.2)),
               ),
-              child: const Row(
-                children: [
-                  Icon(CupertinoIcons.flame_fill,
-                      color: FishdexTheme.coral, size: 12),
-                  SizedBox(width: 4),
-                  Text(
-                    'Actif',
-                    style: TextStyle(
-                      color: FishdexTheme.coral,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+              child: const Row(children: [
+                Icon(CupertinoIcons.flame_fill, color: FishdexTheme.coral, size: 12),
+                SizedBox(width: 4),
+                Text('Actif', style: TextStyle(color: FishdexTheme.coral, fontSize: 12, fontWeight: FontWeight.w600)),
+              ]),
             ),
           ],
         ),
@@ -498,142 +495,79 @@ class HomeScreen extends StatelessWidget {
         GlassCard(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _buildHotSpotRow('Lac de Sainte-Croix', 'Truite, Brochet', 4.8),
-                Divider(color: Colors.black.withOpacity(0.05), height: 20),
-                _buildHotSpotRow('Étang de Berre', 'Carpe, Anguille', 4.5),
-                Divider(color: Colors.black.withOpacity(0.05), height: 20),
-                _buildHotSpotRow('Rivière Arc', 'Sandre, Perche', 4.2),
-              ],
-            ),
+            child: Column(children: [
+              _hotSpotRow('Lac de Sainte-Croix', 'Truite, Brochet', 4.8),
+              Divider(color: Colors.black.withOpacity(0.05), height: 20),
+              _hotSpotRow('Étang de Berre', 'Carpe, Anguille', 4.5),
+              Divider(color: Colors.black.withOpacity(0.05), height: 20),
+              _hotSpotRow('Rivière Arc', 'Sandre, Perche', 4.2),
+            ]),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildHotSpotRow(String name, String fish, double rating) {
-    return Row(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: FishdexTheme.primary.withOpacity(0.08),
-          ),
-          child: const Center(child: Text('📍', style: TextStyle(fontSize: 20))),
+  Widget _hotSpotRow(String name, String fish, double rating) =>
+    Row(children: [
+      Container(width: 42, height: 42,
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: FishdexTheme.primary.withOpacity(0.08)),
+        child: const Center(child: Text('📍', style: TextStyle(fontSize: 20)))),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(name, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+        Text(fish, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
+      ])),
+      Row(children: [
+        const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 12),
+        const SizedBox(width: 3),
+        Text('$rating', style: const TextStyle(color: FishdexTheme.golden, fontSize: 13, fontWeight: FontWeight.w600)),
+      ]),
+    ]);
+
+  // ── Notifications sheet ────────────────────────────────────────────
+  void _showNotifications(BuildContext context) {
+    if (!AuthService.isLoggedIn) {
+      showCupertinoDialog(
+        context: context,
+        builder: (_) => CupertinoAlertDialog(
+          title: const Text('Notifications'),
+          content: const Text('Connecte-toi pour voir tes notifications'),
+          actions: [CupertinoDialogAction(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(name,
-                  style: const TextStyle(
-                      color: FishdexTheme.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600)),
-              Text(fish,
-                  style: const TextStyle(
-                      color: FishdexTheme.textSecondary, fontSize: 12)),
-            ],
-          ),
-        ),
-        Row(
-          children: [
-            const Icon(CupertinoIcons.star_fill,
-                color: FishdexTheme.golden, size: 12),
-            const SizedBox(width: 3),
-            Text(
-              rating.toString(),
-              style: const TextStyle(
-                  color: FishdexTheme.golden,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ],
+      );
+      return;
+    }
+    SocialService.markAllRead();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _NotificationsSheet(),
     );
   }
 
-  // ── Fil des prises publiées ────────────────────────────────────────
-  Widget _buildFeedSection() {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Fil des prises',
-              style: TextStyle(
-                color: FishdexTheme.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.3,
-              )),
-            const SizedBox(height: 12),
-            StreamBuilder<List<FishCatch>>(
-              stream: CatchService.feedStream(),
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(32),
-                      child: CupertinoActivityIndicator(),
-                    ),
-                  );
-                }
-                final catches = snap.data ?? [];
-                if (catches.isEmpty) {
-                  return GlassCard(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          const Text('🌊', style: TextStyle(fontSize: 36)),
-                          const SizedBox(height: 8),
-                          const Text('Aucune prise publiée pour l\'instant',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
-                          const SizedBox(height: 4),
-                          const Text('Va dans ta collection et publie une prise !',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                return Column(
-                  children: catches.asMap().entries.map((e) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: _FeedCard(catch_: e.value)
-                          .animate()
-                          .fadeIn(delay: Duration(milliseconds: 60 * e.key))
-                          .slideY(begin: 0.08, end: 0),
-                    );
-                  }).toList(),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+  static String _ago(DateTime d) {
+    final diff = DateTime.now().difference(d);
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+    if (diff.inHours   < 24) return 'Il y a ${diff.inHours}h';
+    if (diff.inDays    < 7)  return 'Il y a ${diff.inDays}j';
+    const m = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+    return '${d.day} ${m[d.month - 1]}';
   }
 }
 
-// ── Carte fil social ──────────────────────────────────────────────────
+// ── Feed card avec likes/commentaires ────────────────────────────────
 class _FeedCard extends StatelessWidget {
   final FishCatch catch_;
   const _FeedCard({required this.catch_});
 
   @override
   Widget build(BuildContext context) {
+    final isLiked  = catch_.likedBy.contains(AuthService.currentUserId);
+    final likesCnt = catch_.likedBy.length;
+    final commentsCnt = catch_.commentsCount;
+
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
@@ -651,27 +585,22 @@ class _FeedCard extends StatelessWidget {
                 children: [
                   Container(
                     width: 36, height: 36,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [FishdexTheme.primary, Color(0xFF00C6E0)],
-                      ),
+                      gradient: LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00C6E0)]),
                     ),
                     child: const Center(child: Text('🎣', style: TextStyle(fontSize: 18))),
                   ),
                   const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _authorName(catch_),
-                          style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
-                        Text(_ago(catch_.timestamp),
-                          style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
-                      ],
-                    ),
-                  ),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(catch_.userName,
+                        style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
+                      Text(_ago(catch_.timestamp),
+                        style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+                    ],
+                  )),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -680,8 +609,7 @@ class _FeedCard extends StatelessWidget {
                           : FishdexTheme.mint.withOpacity(0.10),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      catch_.isPrivate ? '🔒 Privé' : '🌍 Public',
+                    child: Text(catch_.isPrivate ? '🔒 Privé' : '🌍 Public',
                       style: TextStyle(
                         color: catch_.isPrivate ? FishdexTheme.golden : FishdexTheme.mint,
                         fontSize: 10, fontWeight: FontWeight.w600)),
@@ -692,15 +620,9 @@ class _FeedCard extends StatelessWidget {
 
             // Photo
             if (catch_.imageBase64 != null || catch_.fishImageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.zero,
-                child: SizedBox(
-                  height: 200, width: double.infinity,
-                  child: _photo(),
-                ),
-              ),
+              SizedBox(height: 200, width: double.infinity, child: _photo()),
 
-            // Infos
+            // Infos + likes/commentaires
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
               child: Column(
@@ -711,24 +633,77 @@ class _FeedCard extends StatelessWidget {
                   Text(catch_.species,
                     style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      if (catch_.location != null)
-                        _chip('📍 ${catch_.location!}', FishdexTheme.primary),
-                      if (catch_.weightkg != null)
-                        _chip('⚖️ ${catch_.weightkg} kg', FishdexTheme.mint),
-                      if (catch_.sizecm != null)
-                        _chip('📏 ${catch_.sizecm} cm', FishdexTheme.coral),
-                    ],
-                  ),
+                  Wrap(spacing: 8, runSpacing: 4, children: [
+                    if (catch_.location != null) _chip('📍 ${catch_.location!}', FishdexTheme.primary),
+                    if (catch_.weightkg != null) _chip('⚖️ ${catch_.weightkg} kg', FishdexTheme.mint),
+                    if (catch_.sizecm   != null) _chip('📏 ${catch_.sizecm} cm',   FishdexTheme.coral),
+                  ]),
                   if (catch_.notes != null) ...[
                     const SizedBox(height: 8),
-                    Text(catch_.notes!,
-                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                    Text(catch_.notes!, maxLines: 2, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
                   ],
+
+                  // Séparateur + likes/commentaires
+                  const SizedBox(height: 12),
+                  Divider(color: Colors.black.withOpacity(0.05), height: 1),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      // Like
+                      GestureDetector(
+                        onTap: () {
+                          if (!AuthService.isLoggedIn) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                              content: Text('Connecte-toi pour liker'),
+                              duration: Duration(seconds: 2)));
+                            return;
+                          }
+                          if (catch_.id != null) {
+                            SocialService.toggleLike(catch_.id!, catch_.userId, catch_.frenchName);
+                          }
+                        },
+                        child: Row(
+                          children: [
+                            Icon(
+                              isLiked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                              color: isLiked ? FishdexTheme.coral : FishdexTheme.textTertiary,
+                              size: 20),
+                            const SizedBox(width: 5),
+                            Text('$likesCnt',
+                              style: TextStyle(
+                                color: isLiked ? FishdexTheme.coral : FishdexTheme.textTertiary,
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      // Commentaire
+                      GestureDetector(
+                        onTap: () {
+                          if (catch_.id == null) return;
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => _CommentsSheet(
+                              catchId: catch_.id!,
+                              ownerUserId: catch_.userId,
+                              catchName: catch_.frenchName,
+                            ),
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            const Icon(CupertinoIcons.chat_bubble, color: FishdexTheme.textTertiary, size: 19),
+                            const SizedBox(width: 5),
+                            Text('$commentsCnt',
+                              style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 13, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -740,17 +715,11 @@ class _FeedCard extends StatelessWidget {
 
   Widget _photo() {
     if (catch_.imageBase64 != null && catch_.imageBase64!.isNotEmpty) {
-      try {
-        return Image.memory(base64Decode(catch_.imageBase64!), fit: BoxFit.cover, width: double.infinity);
-      } catch (_) {}
+      try { return Image.memory(base64Decode(catch_.imageBase64!), fit: BoxFit.cover, width: double.infinity); } catch (_) {}
     }
-    if (catch_.fishImageUrl != null) {
-      return Image.network(catch_.fishImageUrl!, fit: BoxFit.cover, width: double.infinity);
-    }
-    return Container(
-      color: FishdexTheme.primary.withOpacity(0.06),
-      child: const Center(child: Text('🐟', style: TextStyle(fontSize: 48))),
-    );
+    if (catch_.fishImageUrl != null) return Image.network(catch_.fishImageUrl!, fit: BoxFit.cover, width: double.infinity);
+    return Container(color: FishdexTheme.primary.withOpacity(0.06),
+      child: const Center(child: Text('🐟', style: TextStyle(fontSize: 48))));
   }
 
   Widget _chip(String label, Color color) => Container(
@@ -759,24 +728,272 @@ class _FeedCard extends StatelessWidget {
     child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
   );
 
-  String _authorName(FishCatch c) =>
-      c.userId == CatchService.userId ? CatchService.userName : c.userId;
-
-  String _ago(DateTime d) {
+  static String _ago(DateTime d) {
     final diff = DateTime.now().difference(d);
     if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
-    if (diff.inHours < 24)   return 'Il y a ${diff.inHours}h';
-    if (diff.inDays < 7)     return 'Il y a ${diff.inDays}j';
+    if (diff.inHours   < 24) return 'Il y a ${diff.inHours}h';
+    if (diff.inDays    < 7)  return 'Il y a ${diff.inDays}j';
     const m = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
     return '${d.day} ${m[d.month - 1]}';
   }
 }
 
-class _Fisher {
-  final String name;
-  final int score;
-  final String emoji;
-  final Color color;
-  final int rank;
-  const _Fisher(this.name, this.score, this.emoji, this.color, this.rank);
+// ── Feuille de commentaires ──────────────────────────────────────────
+class _CommentsSheet extends StatefulWidget {
+  final String catchId, ownerUserId, catchName;
+  const _CommentsSheet({required this.catchId, required this.ownerUserId, required this.catchName});
+
+  @override
+  State<_CommentsSheet> createState() => _CommentsSheetState();
+}
+
+class _CommentsSheetState extends State<_CommentsSheet> {
+  final _ctrl    = TextEditingController();
+  bool _sending  = false;
+
+  Future<void> _send() async {
+    if (!AuthService.isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connecte-toi pour commenter')));
+      return;
+    }
+    if (_ctrl.text.trim().isEmpty) return;
+    setState(() => _sending = true);
+    await SocialService.addComment(
+      widget.catchId, _ctrl.text,
+      ownerUserId: widget.ownerUserId,
+      catchName: widget.catchName,
+    );
+    _ctrl.clear();
+    if (mounted) setState(() => _sending = false);
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: EdgeInsets.fromLTRB(0, 0, 0, bottom),
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.all(Radius.circular(28)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          Center(child: Container(width: 36, height: 4,
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.12), borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(children: [
+              const Text('Commentaires', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          Divider(height: 1, color: Colors.black.withOpacity(0.06)),
+          Expanded(
+            child: StreamBuilder<List<Comment>>(
+              stream: SocialService.commentsStream(widget.catchId),
+              builder: (context, snap) {
+                final comments = snap.data ?? [];
+                if (comments.isEmpty) {
+                  return const Center(
+                    child: Text('Aucun commentaire\nSois le premier !',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 14)));
+                }
+                return ListView.builder(
+                  itemCount: comments.length,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  itemBuilder: (_, i) {
+                    final c = comments[i];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(width: 32, height: 32,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary.withOpacity(0.10)),
+                            child: const Center(child: Text('🎣', style: TextStyle(fontSize: 16)))),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Row(children: [
+                                Text(c.userName, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                                const SizedBox(width: 8),
+                                Text(_ago(c.timestamp), style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+                              ]),
+                              Text(c.text, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
+                            ]),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          Divider(height: 1, color: Colors.black.withOpacity(0.06)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: TextField(
+                      controller: _ctrl,
+                      decoration: const InputDecoration(
+                        hintText: 'Ajouter un commentaire…',
+                        hintStyle: TextStyle(color: FishdexTheme.textTertiary),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      style: const TextStyle(fontSize: 14, color: FishdexTheme.textPrimary),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: _sending ? null : _send,
+                  child: Container(
+                    width: 38, height: 38,
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary),
+                    child: _sending
+                        ? const CupertinoActivityIndicator(color: Colors.white)
+                        : const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _ago(DateTime d) {
+    final diff = DateTime.now().difference(d);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}min';
+    if (diff.inHours   < 24) return '${diff.inHours}h';
+    return '${diff.inDays}j';
+  }
+}
+
+// ── Feuille de notifications ─────────────────────────────────────────
+class _NotificationsSheet extends StatelessWidget {
+  const _NotificationsSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.all(Radius.circular(28))),
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          Center(child: Container(width: 36, height: 4,
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.12), borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(children: [
+              Text('🔔', style: TextStyle(fontSize: 18)),
+              SizedBox(width: 8),
+              Text('Notifications', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+            ]),
+          ),
+          Divider(height: 20, color: Colors.black.withOpacity(0.06)),
+          Expanded(
+            child: StreamBuilder<List<AppNotification>>(
+              stream: SocialService.notificationsStream(),
+              builder: (context, snap) {
+                final notifs = snap.data ?? [];
+                if (notifs.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('🎣', style: TextStyle(fontSize: 36)),
+                        SizedBox(height: 8),
+                        Text('Aucune notification pour l\'instant',
+                          style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+                      ],
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  itemCount: notifs.length,
+                  itemBuilder: (context, i) {
+                    final n = notifs[i];
+                    final isLike = n.type == 'like';
+                    return GestureDetector(
+                      onTap: () async {
+                        Navigator.pop(context);
+                        final catch_ = await CatchService.getById(n.catchId);
+                        if (catch_ != null && context.mounted) {
+                          Navigator.push(context,
+                              CupertinoPageRoute(builder: (_) => CatchDetailScreen(catch_: catch_)));
+                        }
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: n.read ? Colors.transparent : FishdexTheme.primary.withOpacity(0.04),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.black.withOpacity(0.05)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(width: 36, height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: (isLike ? FishdexTheme.coral : FishdexTheme.primary).withOpacity(0.10)),
+                              child: Center(child: Text(isLike ? '❤️' : '💬',
+                                style: const TextStyle(fontSize: 16)))),
+                            const SizedBox(width: 12),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              RichText(text: TextSpan(
+                                style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13),
+                                children: [
+                                  TextSpan(text: n.fromUserName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  TextSpan(text: isLike ? ' a aimé ta prise ' : ' a commenté ta prise '),
+                                  TextSpan(text: n.catchName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                ],
+                              )),
+                              if (n.commentText != null)
+                                Text('« ${n.commentText} »',
+                                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+                            ])),
+                            if (!n.read)
+                              Container(width: 8, height: 8,
+                                decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary)),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
 }

@@ -8,6 +8,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../models/catch_model.dart';
+import '../services/auth_service.dart';
 import '../services/catch_service.dart';
 import '../services/wiki_service.dart';
 import '../theme/fishdex_theme.dart';
@@ -167,23 +168,27 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
-  Future<void> _saveToCollection() async {
-    if (_result == null || _isSaving) return;
-    setState(() => _isSaving = true);
-    final b64 = _imageBytes != null ? base64Encode(_imageBytes!) : null;
-    await CatchService.save(FishCatch(
-      userId:       CatchService.userId,
-      species:      _result!.topSpecies,
-      frenchName:   _fr(_result!.topSpecies),
-      family:       _result!.family,
-      confidence:   _result!.topScore,
-      top5:         _result!.top5.map((e) => {'species': e.species, 'score': e.score}).toList(),
-      imageBase64:  b64,
-      fishImageUrl: _fishImageUrl,
-      timestamp:    DateTime.now(),
-    ));
-    if (!mounted) return;
-    setState(() { _isSaving = false; _saved = true; });
+  void _openSaveSheet() {
+    if (_result == null) return;
+    if (!AuthService.isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('🔒 Connecte-toi dans Profil pour sauvegarder'),
+        backgroundColor: Color(0xFFFF6B6B),
+        duration: Duration(seconds: 3),
+      ));
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SaveSheet(
+        result: _result!,
+        imageBytes: _imageBytes,
+        fishImageUrl: _fishImageUrl,
+        onSaved: () { if (mounted) setState(() => _saved = true); },
+      ),
+    );
   }
 
   void _reset() => setState(() {
@@ -570,54 +575,37 @@ class _CameraScreenState extends State<CameraScreen>
 
         const SizedBox(height: 12),
 
-        // CTA : Enregistrer + Partager
-        Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: _saved ? null : _saveToCollection,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height: 54,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: _saved
-                        ? LinearGradient(colors: [FishdexTheme.mint, FishdexTheme.mint])
-                        : const LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00B4D8)]),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (_saved ? FishdexTheme.mint : FishdexTheme.primary).withOpacity(0.25),
-                        blurRadius: 14,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: _isSaving
-                        ? const SizedBox(width: 20, height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(_saved ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.tray_arrow_down,
-                                color: Colors.white, size: 18),
-                              const SizedBox(width: 8),
-                              Text(_saved ? 'Enregistré !' : 'Enregistrer dans ma collection',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
-                            ],
-                          ),
-                  ),
+        // CTA : Enregistrer
+        GestureDetector(
+          onTap: _saved ? null : _openSaveSheet,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: 54, width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: _saved
+                  ? const LinearGradient(colors: [FishdexTheme.mint, FishdexTheme.mint])
+                  : const LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00B4D8)]),
+              boxShadow: [
+                BoxShadow(
+                  color: (_saved ? FishdexTheme.mint : FishdexTheme.primary).withOpacity(0.25),
+                  blurRadius: 14, offset: const Offset(0, 5),
                 ),
+              ],
+            ),
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(_saved ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.tray_arrow_down,
+                    color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Text(_saved ? 'Enregistré !' : 'Enregistrer la prise',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                ],
               ),
             ),
-            const SizedBox(width: 10),
-            GlassCard(radius: 16,
-              child: const Padding(
-                padding: EdgeInsets.all(14),
-                child: Icon(CupertinoIcons.share, color: FishdexTheme.textPrimary, size: 20),
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.05, end: 0);
@@ -678,6 +666,246 @@ class _ScoreBar extends StatelessWidget {
         Text('${(score * 100).toStringAsFixed(0)}% correspondance',
           style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 10)),
       ],
+    );
+  }
+}
+
+// ── Feuille de sauvegarde ────────────────────────────────────────────
+const _frSave = _frenchNames; // alias local
+
+class _SaveSheet extends StatefulWidget {
+  final _Result result;
+  final Uint8List? imageBytes;
+  final String? fishImageUrl;
+  final VoidCallback onSaved;
+  const _SaveSheet({
+    required this.result, required this.imageBytes,
+    required this.fishImageUrl, required this.onSaved,
+  });
+
+  @override
+  State<_SaveSheet> createState() => _SaveSheetState();
+}
+
+class _SaveSheetState extends State<_SaveSheet> {
+  final _sizeCtrl   = TextEditingController();
+  final _weightCtrl = TextEditingController();
+  final _locCtrl    = TextEditingController();
+  final _notesCtrl  = TextEditingController();
+  // 0 = privé (non publié), 1 = amis (privé), 2 = public
+  int  _publishMode = 0;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _sizeCtrl.dispose(); _weightCtrl.dispose();
+    _locCtrl.dispose();  _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final b64 = widget.imageBytes != null ? base64Encode(widget.imageBytes!) : null;
+    await CatchService.save(FishCatch(
+      userId:       CatchService.userId,
+      userName:     CatchService.userName,
+      species:      widget.result.topSpecies,
+      frenchName:   _fr(widget.result.topSpecies),
+      family:       widget.result.family,
+      confidence:   widget.result.topScore,
+      top5:         widget.result.top5
+          .map((e) => {'species': e.species, 'score': e.score})
+          .toList(),
+      imageBase64:  b64,
+      fishImageUrl: widget.fishImageUrl,
+      timestamp:    DateTime.now(),
+      sizecm:       double.tryParse(_sizeCtrl.text),
+      weightkg:     double.tryParse(_weightCtrl.text),
+      location:     _locCtrl.text.trim().isEmpty  ? null : _locCtrl.text.trim(),
+      notes:        _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      isPublished:  _publishMode > 0,
+      isPrivate:    _publishMode == 1,
+    ));
+    if (!mounted) return;
+    widget.onSaved();
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topName = _fr(widget.result.topSpecies);
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottom),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 30, offset: const Offset(0, -4))],
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Poignée
+            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.black.withOpacity(0.12), borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+
+            // En-tête
+            Row(
+              children: [
+                // Photo preview
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(width: 52, height: 52, child: _preview()),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(topName,
+                        style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
+                      Text(widget.result.topSpecies,
+                        style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Champs facultatifs
+            const Text('INFOS SUR LA PRISE (FACULTATIF)',
+              style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _field('Taille (cm)', _sizeCtrl, '42',
+                    type: const TextInputType.numberWithOptions(decimal: true))),
+                const SizedBox(width: 10),
+                Expanded(child: _field('Poids (kg)',  _weightCtrl, '1.8',
+                    type: const TextInputType.numberWithOptions(decimal: true))),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _field('Lieu de pêche', _locCtrl, 'Lac de Villefranche…'),
+            const SizedBox(height: 10),
+            _field('Notes', _notesCtrl, 'Belle prise…', maxLines: 2),
+
+            const SizedBox(height: 20),
+
+            // Options de publication
+            const Text('VISIBILITÉ',
+              style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _publishBtn(0, '🔒', 'Privé'),
+                const SizedBox(width: 8),
+                _publishBtn(1, '👥', 'Amis'),
+                const SizedBox(width: 8),
+                _publishBtn(2, '🌍', 'Public'),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // Boutons
+            Row(
+              children: [
+                Expanded(
+                  child: CupertinoButton(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    color: FishdexTheme.primary,
+                    borderRadius: BorderRadius.circular(16),
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const CupertinoActivityIndicator(color: Colors.white)
+                        : const Text('Enregistrer',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  color: Colors.black.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(16),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Ignorer',
+                    style: TextStyle(color: FishdexTheme.textSecondary, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _preview() {
+    if (widget.imageBytes != null) return Image.memory(widget.imageBytes!, fit: BoxFit.cover);
+    if (widget.fishImageUrl != null) return Image.network(widget.fishImageUrl!, fit: BoxFit.cover);
+    return Container(color: FishdexTheme.primary.withOpacity(0.07),
+      child: const Center(child: Text('🐟', style: TextStyle(fontSize: 26))));
+  }
+
+  Widget _field(String label, TextEditingController ctrl, String hint,
+      {TextInputType type = TextInputType.text, int maxLines = 1}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black.withOpacity(0.07)),
+          ),
+          child: TextField(
+            controller: ctrl, keyboardType: type, maxLines: maxLines,
+            style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 13),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _publishBtn(int mode, String emoji, String label) {
+    final sel = _publishMode == mode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _publishMode = mode),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: sel ? FishdexTheme.primary.withOpacity(0.10) : Colors.black.withOpacity(0.03),
+            border: Border.all(
+              color: sel ? FishdexTheme.primary.withOpacity(0.4) : Colors.black.withOpacity(0.07),
+              width: sel ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 18)),
+              const SizedBox(height: 2),
+              Text(label, style: TextStyle(
+                color: sel ? FishdexTheme.primary : FishdexTheme.textSecondary,
+                fontSize: 11, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class FishCatch {
   final String? id;
   final String userId;
+  final String userName;
   final String species;
   final String frenchName;
   final String family;
@@ -11,18 +12,20 @@ class FishCatch {
   final String? imageBase64;
   final String? fishImageUrl;
   final DateTime timestamp;
-  // Champs optionnels
   final double? sizecm;
   final double? weightkg;
   final String? location;
   final String? notes;
-  // Publication
   final bool isPublished;
   final bool isPrivate;
+  // Social (gérés par SocialService, jamais écrasés via toFirestore)
+  final List<String> likedBy;
+  final int commentsCount;
 
   const FishCatch({
     this.id,
     required this.userId,
+    this.userName = 'Pêcheur',
     required this.species,
     required this.frenchName,
     required this.family,
@@ -37,6 +40,8 @@ class FishCatch {
     this.notes,
     this.isPublished = false,
     this.isPrivate = false,
+    this.likedBy = const [],
+    this.commentsCount = 0,
   });
 
   FishCatch copyWith({
@@ -52,15 +57,17 @@ class FishCatch {
     String? notes,
     bool? isPublished,
     bool? isPrivate,
-    // sentinels pour effacer une valeur nullable
-    bool clearImage = false,
-    bool clearSize = false,
-    bool clearWeight = false,
+    List<String>? likedBy,
+    int? commentsCount,
+    bool clearImage    = false,
+    bool clearSize     = false,
+    bool clearWeight   = false,
     bool clearLocation = false,
-    bool clearNotes = false,
+    bool clearNotes    = false,
   }) => FishCatch(
-    id: id,
-    userId: userId,
+    id:           id,
+    userId:       userId,
+    userName:     userName,
     species:      species      ?? this.species,
     frenchName:   frenchName   ?? this.frenchName,
     family:       family       ?? this.family,
@@ -75,10 +82,14 @@ class FishCatch {
     notes:        clearNotes   ? null : (notes    ?? this.notes),
     isPublished:  isPublished  ?? this.isPublished,
     isPrivate:    isPrivate    ?? this.isPrivate,
+    likedBy:      likedBy      ?? this.likedBy,
+    commentsCount:commentsCount?? this.commentsCount,
   );
 
+  // likedBy / commentsCount gérés par SocialService → non inclus ici
   Map<String, dynamic> toFirestore() => {
     'userId':       userId,
+    'userName':     userName,
     'species':      species,
     'frenchName':   frenchName,
     'family':       family,
@@ -89,15 +100,16 @@ class FishCatch {
     'timestamp':    Timestamp.fromDate(timestamp),
     'isPublished':  isPublished,
     'isPrivate':    isPrivate,
-    if (sizecm != null)   'sizecm':   sizecm,
+    if (sizecm   != null) 'sizecm':   sizecm,
     if (weightkg != null) 'weightkg': weightkg,
     if (location != null) 'location': location,
-    if (notes != null)    'notes':    notes,
+    if (notes    != null) 'notes':    notes,
   };
 
   factory FishCatch.fromFirestore(String id, Map<String, dynamic> d) => FishCatch(
     id:           id,
-    userId:       d['userId']    as String? ?? 'demo_user',
+    userId:       d['userId']    as String? ?? '',
+    userName:     d['userName']  as String? ?? 'Pêcheur',
     species:      d['species']   as String? ?? '',
     frenchName:   d['frenchName']as String? ?? '',
     family:       d['family']    as String? ?? '',
@@ -114,5 +126,7 @@ class FishCatch {
     notes:        d['notes']     as String?,
     isPublished:  d['isPublished'] as bool? ?? false,
     isPrivate:    d['isPrivate']   as bool? ?? false,
+    likedBy:      List<String>.from(d['likedBy'] as List? ?? []),
+    commentsCount:(d['commentsCount'] as num?)?.toInt() ?? 0,
   );
 }

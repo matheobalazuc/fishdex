@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/catch_model.dart';
+import '../services/auth_service.dart';
 import '../services/catch_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
@@ -31,8 +33,31 @@ class CollectionScreen extends StatelessWidget {
             ),
           ),
 
-          StreamBuilder<List<FishCatch>>(
-            stream: CatchService.stream(),
+          StreamBuilder<User?>(
+            stream: AuthService.authStateChanges,
+            builder: (context, authSnap) {
+              if (authSnap.data == null) {
+                return const SliverFillRemaining(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Text('🔒', style: TextStyle(fontSize: 48)),
+                        SizedBox(height: 12),
+                        Text('Connecte-toi pour voir ta collection',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 16, fontWeight: FontWeight.w600)),
+                        SizedBox(height: 8),
+                        Text('Va dans Profil pour créer ton compte.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 13)),
+                      ]),
+                    ),
+                  ),
+                );
+              }
+              return StreamBuilder<List<FishCatch>>(
+                stream: CatchService.stream(),
             builder: (context, snap) {
               if (snap.hasError) {
                 return SliverFillRemaining(
@@ -76,6 +101,8 @@ class CollectionScreen extends StatelessWidget {
                     childCount: catches.length,
                   ),
                 ),
+              );
+            },
               );
             },
           ),
