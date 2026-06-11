@@ -239,24 +239,54 @@ class _CatchTile extends StatelessWidget {
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   Future<bool> _confirmDelete(BuildContext ctx) async {
-    return await showCupertinoDialog<bool>(
-          context: ctx,
-          builder: (_) => CupertinoAlertDialog(
-            title: const Text('Supprimer'),
-            content: Text('Supprimer "${catch_.frenchName}" de ta collection ?'),
-            actions: [
-              CupertinoDialogAction(
-                isDestructiveAction: true,
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Supprimer'),
-              ),
-              CupertinoDialogAction(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Annuler'),
-              ),
-            ],
-          ),
-        ) ?? false;
+    final result = await showModalBottomSheet<bool>(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.all(Radius.circular(28)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2))),
+          const Text('🗑️', style: TextStyle(fontSize: 44)),
+          const SizedBox(height: 14),
+          const Text('Supprimer la prise ?',
+            style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Text('"${catch_.frenchName}" sera supprimée de ta collection.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+          const SizedBox(height: 28),
+          Row(children: [
+            Expanded(child: GestureDetector(
+              onTap: () => Navigator.pop(ctx, false),
+              child: Container(height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(16)),
+                child: const Center(child: Text('Annuler',
+                  style: TextStyle(color: FishdexTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 16)))),
+            )),
+            const SizedBox(width: 12),
+            Expanded(child: GestureDetector(
+              onTap: () => Navigator.pop(ctx, true),
+              child: Container(height: 52,
+                decoration: BoxDecoration(
+                  color: FishdexTheme.coral,
+                  borderRadius: BorderRadius.circular(16)),
+                child: const Center(child: Text('Supprimer',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)))),
+            )),
+          ]),
+          const SizedBox(height: 4),
+        ]),
+      ),
+    );
+    return result ?? false;
   }
 }
 

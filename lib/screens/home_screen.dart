@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/catch_model.dart';
 import '../services/auth_service.dart';
 import '../services/catch_service.dart';
@@ -108,10 +109,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     stream: AuthService.authStateChanges,
                     builder: (context, authSnap) {
                       final name = AuthService.isLoggedIn
-                          ? AuthService.currentUserName
-                          : 'Anonyme';
+                          ? AuthService.currentUserName.split(' ').first
+                          : null;
                       return Text(
-                        'Bonjour, ${name.split(' ').first} 🎣',
+                        name != null ? 'Bonjour, $name 🎣' : 'Bonjour 🎣',
                         style: const TextStyle(
                           color: FishdexTheme.textPrimary,
                           fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.8),
@@ -466,7 +467,13 @@ class _HomeScreenState extends State<HomeScreen> {
       child: const Center(child: Text('🐟', style: TextStyle(fontSize: 26))));
   }
 
-  // ── Hot Spots (statique) ───────────────────────────────────────────
+  // ── Hot Spots ──────────────────────────────────────────────────────
+  static const _hotSpots = [
+    _HotSpot('Lac de Sainte-Croix', 'Truite, Brochet', 4.8, 43.7754, 6.1488),
+    _HotSpot('Étang de Berre',      'Carpe, Anguille',  4.5, 43.4531, 5.1714),
+    _HotSpot('Rivière Arc',         'Sandre, Perche',   4.2, 43.5298, 5.4380),
+  ];
+
   Widget _buildHotSpots() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -495,45 +502,77 @@ class _HomeScreenState extends State<HomeScreen> {
         GlassCard(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(children: [
-              _hotSpotRow('Lac de Sainte-Croix', 'Truite, Brochet', 4.8),
-              Divider(color: Colors.black.withOpacity(0.05), height: 20),
-              _hotSpotRow('Étang de Berre', 'Carpe, Anguille', 4.5),
-              Divider(color: Colors.black.withOpacity(0.05), height: 20),
-              _hotSpotRow('Rivière Arc', 'Sandre, Perche', 4.2),
-            ]),
+            child: Column(
+              children: List.generate(_hotSpots.length, (i) => Column(
+                children: [
+                  if (i > 0) Divider(color: Colors.black.withOpacity(0.05), height: 20),
+                  _hotSpotRow(_hotSpots[i]),
+                ],
+              )),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _hotSpotRow(String name, String fish, double rating) =>
-    Row(children: [
-      Container(width: 42, height: 42,
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: FishdexTheme.primary.withOpacity(0.08)),
-        child: const Center(child: Text('📍', style: TextStyle(fontSize: 20)))),
-      const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(name, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-        Text(fish, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
-      ])),
-      Row(children: [
-        const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 12),
-        const SizedBox(width: 3),
-        Text('$rating', style: const TextStyle(color: FishdexTheme.golden, fontSize: 13, fontWeight: FontWeight.w600)),
+  Widget _hotSpotRow(_HotSpot spot) {
+    return GestureDetector(
+      onTap: () => _openMap(spot),
+      child: Row(children: [
+        Container(width: 42, height: 42,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: FishdexTheme.primary.withOpacity(0.08)),
+          child: const Center(child: Text('📍', style: TextStyle(fontSize: 20)))),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(spot.name, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(spot.fish, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
+        ])),
+        Row(children: [
+          const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 12),
+          const SizedBox(width: 3),
+          Text('${spot.rating}', style: const TextStyle(color: FishdexTheme.golden, fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 8),
+          const Icon(CupertinoIcons.map, color: FishdexTheme.primary, size: 16),
+        ]),
       ]),
-    ]);
+    );
+  }
+
+  Future<void> _openMap(_HotSpot spot) async {
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(spot.name)}&center=${spot.lat},${spot.lng}');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 
   // ── Notifications sheet ────────────────────────────────────────────
   void _showNotifications(BuildContext context) {
     if (!AuthService.isLoggedIn) {
-      showCupertinoDialog(
+      showModalBottomSheet(
         context: context,
-        builder: (_) => CupertinoAlertDialog(
-          title: const Text('Notifications'),
-          content: const Text('Connecte-toi pour voir tes notifications'),
-          actions: [CupertinoDialogAction(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+        backgroundColor: Colors.transparent,
+        builder: (_) => Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(28),
+          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.all(Radius.circular(28))),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2))),
+            const Text('🔔', style: TextStyle(fontSize: 44)),
+            const SizedBox(height: 16),
+            const Text('Notifications', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            const Text('Connecte-toi pour voir tes notifications', textAlign: TextAlign.center,
+              style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+            const SizedBox(height: 24),
+            SizedBox(width: double.infinity, child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(height: 50,
+                decoration: BoxDecoration(color: FishdexTheme.primary, borderRadius: BorderRadius.circular(16)),
+                child: const Center(child: Text('OK', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)))),
+            )),
+            const SizedBox(height: 8),
+          ]),
         ),
       );
       return;
@@ -996,4 +1035,10 @@ class _NotificationsSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HotSpot {
+  final String name, fish;
+  final double rating, lat, lng;
+  const _HotSpot(this.name, this.fish, this.rating, this.lat, this.lng);
 }

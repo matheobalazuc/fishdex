@@ -13,6 +13,68 @@ import 'catch_detail_screen.dart';
 const _kVersion   = '1.0.0';
 const _kBuildDate = '11/06/2026';
 
+// ── Helper dialog ──────────────────────────────────────────────────────
+Future<bool> _showConfirmSheet(
+  BuildContext context, {
+  required String emoji,
+  required String title,
+  required String subtitle,
+  required String confirmLabel,
+  Color confirmColor = FishdexTheme.coral,
+}) async {
+  final result = await showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (_) => Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.all(Radius.circular(28)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 36, height: 4,
+          margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(2))),
+        Text(emoji, style: const TextStyle(fontSize: 44)),
+        const SizedBox(height: 14),
+        Text(title, style: const TextStyle(
+          color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text(subtitle, textAlign: TextAlign.center,
+          style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+        const SizedBox(height: 28),
+        Row(children: [
+          Expanded(child: GestureDetector(
+            onTap: () => Navigator.pop(context, false),
+            child: Container(height: 52,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(16)),
+              child: const Center(child: Text('Annuler',
+                style: TextStyle(color: FishdexTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 16)))),
+          )),
+          const SizedBox(width: 12),
+          Expanded(child: GestureDetector(
+            onTap: () => Navigator.pop(context, true),
+            child: Container(height: 52,
+              decoration: BoxDecoration(
+                color: confirmColor,
+                borderRadius: BorderRadius.circular(16)),
+              child: Center(child: Text(confirmLabel,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)))),
+          )),
+        ]),
+        const SizedBox(height: 4),
+      ]),
+    ),
+  );
+  return result ?? false;
+}
+
+// ── Profile screen ─────────────────────────────────────────────────────
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -26,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: AuthService.authStateChanges,
+      stream: AuthService.userChanges,
       builder: (context, authSnap) {
         final user = authSnap.data;
         if (user == null) return const _AuthView();
@@ -43,7 +105,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SliverToBoxAdapter(child: _buildTabBar()),
                 if (_tab == 0) _buildCollectionGrid(catches, context),
                 if (_tab == 1) _buildAchievements(catches),
-                SliverToBoxAdapter(child: _buildVersionFooter()),
+                SliverToBoxAdapter(child: _buildVersionFooter(context)),
               ],
             );
           },
@@ -60,6 +122,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w600)),
     actions: [
       CupertinoButton(
+        padding: const EdgeInsets.only(right: 6),
+        onPressed: () => _openEdit(context),
+        child: const Icon(CupertinoIcons.pencil, color: FishdexTheme.primary, size: 22),
+      ),
+      CupertinoButton(
         padding: const EdgeInsets.only(right: 12),
         onPressed: () => _confirmLogout(context),
         child: const Icon(CupertinoIcons.square_arrow_right, color: FishdexTheme.coral, size: 22),
@@ -71,20 +138,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ),
   );
 
-  Future<void> _confirmLogout(BuildContext context) async {
-    final ok = await showCupertinoDialog<bool>(
+  void _openEdit(BuildContext context) {
+    showModalBottomSheet(
       context: context,
-      builder: (_) => CupertinoAlertDialog(
-        title: const Text('Se déconnecter ?'),
-        actions: [
-          CupertinoDialogAction(isDestructiveAction: true,
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Se déconnecter')),
-          CupertinoDialogAction(onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler')),
-        ],
-      ),
-    ) ?? false;
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _EditProfileSheet(),
+    );
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final ok = await _showConfirmSheet(context,
+      emoji: '👋',
+      title: 'Se déconnecter ?',
+      subtitle: 'Tu pourras te reconnecter quand tu veux.',
+      confirmLabel: 'Se déconnecter',
+    );
     if (ok) await AuthService.signOut();
   }
 
@@ -224,7 +293,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildCollectionGrid(List<FishCatch> catches, BuildContext context) {
     if (catches.isEmpty) {
       return SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(40),
-        child: Column(children: const [
+        child: const Column(children: [
           Text('🎣', style: TextStyle(fontSize: 48)),
           SizedBox(height: 12),
           Text('Aucune prise enregistrée', style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 15)),
@@ -309,7 +378,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildVersionFooter() => Padding(
+  Widget _buildVersionFooter(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 24, 16, 140),
     child: Column(children: [
       Divider(color: Colors.black.withOpacity(0.06)),
@@ -326,11 +395,306 @@ class _ProfileScreenState extends State<ProfileScreen> {
       const Text('Version $_kVersion', style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
       const SizedBox(height: 2),
       const Text('Mis à jour le $_kBuildDate', style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+      const SizedBox(height: 20),
+      GestureDetector(
+        onTap: () => _confirmDeleteAccount(context),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: FishdexTheme.coral.withOpacity(0.07),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: FishdexTheme.coral.withOpacity(0.2)),
+          ),
+          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(CupertinoIcons.trash, color: FishdexTheme.coral, size: 16),
+            SizedBox(width: 8),
+            Text('Supprimer mon compte', style: TextStyle(
+              color: FishdexTheme.coral, fontSize: 14, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ),
     ]),
+  );
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final ok = await _showConfirmSheet(context,
+      emoji: '🗑️',
+      title: 'Supprimer le compte ?',
+      subtitle: 'Toutes tes prises seront supprimées définitivement.',
+      confirmLabel: 'Supprimer',
+    );
+    if (!ok || !context.mounted) return;
+    // Ask for password confirmation
+    final pwd = await _askPassword(context);
+    if (pwd == null || !context.mounted) return;
+    final err = await AuthService.deleteAccount(pwd);
+    if (err != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(err), backgroundColor: FishdexTheme.coral));
+    }
+  }
+
+  Future<String?> _askPassword(BuildContext context) {
+    final ctrl = TextEditingController();
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        final bottom = MediaQuery.of(context).viewInsets.bottom;
+        return Container(
+          margin: const EdgeInsets.all(12),
+          padding: EdgeInsets.fromLTRB(24, 8, 24, 24 + bottom),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.all(Radius.circular(28)),
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2))),
+            const Text('🔑', style: TextStyle(fontSize: 40)),
+            const SizedBox(height: 14),
+            const Text('Confirmer avec ton mot de passe',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 20),
+            _inputField('Mot de passe', ctrl, obscure: true),
+            const SizedBox(height: 16),
+            SizedBox(width: double.infinity, child: GestureDetector(
+              onTap: () => Navigator.pop(context, ctrl.text),
+              child: Container(height: 52,
+                decoration: BoxDecoration(color: FishdexTheme.coral, borderRadius: BorderRadius.circular(16)),
+                child: const Center(child: Text('Confirmer la suppression',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)))),
+            )),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+// ── Edit profile sheet ─────────────────────────────────────────────────
+class _EditProfileSheet extends StatefulWidget {
+  const _EditProfileSheet();
+
+  @override
+  State<_EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends State<_EditProfileSheet> {
+  final _nameCtrl     = TextEditingController();
+  final _userCtrl     = TextEditingController();
+  final _userPwdCtrl  = TextEditingController();
+  final _oldPwdCtrl   = TextEditingController();
+  final _newPwdCtrl   = TextEditingController();
+
+  bool _loadingName = false;
+  bool _loadingUser = false;
+  bool _loadingPwd  = false;
+  String? _errName, _errUser, _errPwd;
+  String? _okName,  _okUser,  _okPwd;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = AuthService.currentUser;
+    _nameCtrl.text = user?.displayName ?? '';
+    _userCtrl.text = user?.email?.split('@').first ?? '';
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose(); _userCtrl.dispose(); _userPwdCtrl.dispose();
+    _oldPwdCtrl.dispose(); _newPwdCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveName() async {
+    if (_nameCtrl.text.trim().isEmpty) return;
+    setState(() { _loadingName = true; _errName = null; _okName = null; });
+    final err = await AuthService.updateDisplayName(_nameCtrl.text);
+    if (!mounted) return;
+    setState(() {
+      _loadingName = false;
+      _errName = err;
+      _okName  = err == null ? 'Nom mis à jour !' : null;
+    });
+  }
+
+  Future<void> _saveUsername() async {
+    if (_userCtrl.text.trim().isEmpty || _userPwdCtrl.text.isEmpty) return;
+    setState(() { _loadingUser = true; _errUser = null; _okUser = null; });
+    final err = await AuthService.updateUsername(_userCtrl.text, _userPwdCtrl.text);
+    if (!mounted) return;
+    setState(() {
+      _loadingUser = false;
+      _errUser = err;
+      _okUser  = err == null ? 'Identifiant mis à jour !' : null;
+    });
+  }
+
+  Future<void> _savePassword() async {
+    if (_oldPwdCtrl.text.isEmpty || _newPwdCtrl.text.isEmpty) return;
+    setState(() { _loadingPwd = true; _errPwd = null; _okPwd = null; });
+    final err = await AuthService.changePassword(_oldPwdCtrl.text, _newPwdCtrl.text);
+    if (!mounted) return;
+    setState(() {
+      _loadingPwd = false;
+      _errPwd = err;
+      _okPwd  = err == null ? 'Mot de passe modifié !' : null;
+    });
+    if (err == null) { _oldPwdCtrl.clear(); _newPwdCtrl.clear(); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: EdgeInsets.fromLTRB(0, 0, 0, bottom),
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.all(Radius.circular(28)),
+      ),
+      child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Column(children: [
+            Center(child: Container(width: 36, height: 4,
+              decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            const Row(children: [
+              Text('Modifier le profil',
+                style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 4),
+          ]),
+        ),
+        Divider(height: 1, color: Colors.black.withOpacity(0.06)),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Section: Nom
+                _sectionHeader('✏️', 'Prénom affiché'),
+                const SizedBox(height: 10),
+                _inputField('Nouveau prénom', _nameCtrl),
+                if (_errName != null) _errorMsg(_errName!),
+                if (_okName  != null) _successMsg(_okName!),
+                const SizedBox(height: 10),
+                _saveBtn('Sauvegarder le nom', _loadingName, _saveName),
+                const SizedBox(height: 24),
+
+                // Section: Identifiant
+                _sectionHeader('🪪', 'Identifiant'),
+                const SizedBox(height: 10),
+                _inputField('Nouvel identifiant', _userCtrl),
+                const SizedBox(height: 8),
+                _inputField('Mot de passe actuel', _userPwdCtrl, obscure: true),
+                if (_errUser != null) _errorMsg(_errUser!),
+                if (_okUser  != null) _successMsg(_okUser!),
+                const SizedBox(height: 10),
+                _saveBtn('Sauvegarder l\'identifiant', _loadingUser, _saveUsername),
+                const SizedBox(height: 24),
+
+                // Section: Mot de passe
+                _sectionHeader('🔑', 'Mot de passe'),
+                const SizedBox(height: 10),
+                _inputField('Mot de passe actuel', _oldPwdCtrl, obscure: true),
+                const SizedBox(height: 8),
+                _inputField('Nouveau mot de passe', _newPwdCtrl, obscure: true),
+                if (_errPwd != null) _errorMsg(_errPwd!),
+                if (_okPwd  != null) _successMsg(_okPwd!),
+                const SizedBox(height: 10),
+                _saveBtn('Modifier le mot de passe', _loadingPwd, _savePassword),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _sectionHeader(String emoji, String title) => Row(children: [
+    Text(emoji, style: const TextStyle(fontSize: 16)),
+    const SizedBox(width: 6),
+    Text(title, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+  ]);
+
+  Widget _saveBtn(String label, bool loading, VoidCallback onTap) =>
+    GestureDetector(
+      onTap: loading ? null : onTap,
+      child: Container(
+        width: double.infinity, height: 48,
+        decoration: BoxDecoration(
+          color: FishdexTheme.primary,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Center(child: loading
+          ? const CupertinoActivityIndicator(color: Colors.white)
+          : Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14))),
+      ),
+    );
+
+  Widget _errorMsg(String msg) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: FishdexTheme.coral.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: FishdexTheme.coral.withOpacity(0.2)),
+      ),
+      child: Text(msg, style: const TextStyle(color: FishdexTheme.coral, fontSize: 12)),
+    ),
+  );
+
+  Widget _successMsg(String msg) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: FishdexTheme.mint.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: FishdexTheme.mint.withOpacity(0.3)),
+      ),
+      child: Row(children: [
+        const Icon(CupertinoIcons.checkmark_circle_fill, color: FishdexTheme.mint, size: 14),
+        const SizedBox(width: 6),
+        Text(msg, style: const TextStyle(color: FishdexTheme.mint, fontSize: 12, fontWeight: FontWeight.w600)),
+      ]),
+    ),
   );
 }
 
-// ── Vue authentification ─────────────────────────────────────────────
+Widget _inputField(String label, TextEditingController ctrl, {bool obscure = false}) =>
+  Container(
+    decoration: BoxDecoration(
+      color: Colors.black.withOpacity(0.03),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: Colors.black.withOpacity(0.07)),
+    ),
+    child: TextField(
+      controller: ctrl,
+      obscureText: obscure,
+      style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+      ),
+    ),
+  );
+
+// ── Vue authentification ───────────────────────────────────────────────
 class _AuthView extends StatefulWidget {
   const _AuthView();
 
@@ -393,7 +757,6 @@ class _AuthViewState extends State<_AuthView> {
                 style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
               const SizedBox(height: 36),
 
-              // Tabs
               GlassCard(radius: 16, child: Padding(padding: const EdgeInsets.all(4),
                 child: Row(children: [_tabBtn('Se connecter', false), _tabBtn('S\'inscrire', true)]))),
 
