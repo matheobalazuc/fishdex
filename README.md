@@ -1,4 +1,4 @@
-# Fishdex — Frontend & Backend
+# Fishdex — Frontend & Backend 
 
 > Application mobile-first permettant aux pêcheurs d'identifier leurs prises, de les partager et de suivre leur progression.
 
