@@ -11,6 +11,8 @@ class AuthService {
   static String  get currentUserName => _auth.currentUser?.displayName ?? 'Pêcheur';
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
   static Stream<User?> get userChanges      => _auth.userChanges();
+  static String get currentUserHandle =>
+      _auth.currentUser?.email?.split('@').first ?? '';
 
   static String _email(String u) =>
       '${u.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '_')}@fishdex.app';

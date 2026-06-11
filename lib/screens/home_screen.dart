@@ -24,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final Stream<List<FishCatch>>            _feedStream;
   late final Stream<List<Map<String, dynamic>>> _topStream;
   Stream<List<FishCatch>>?  _recentStream;
+  Stream<List<FishCatch>>?  _statsStream;
   Stream<int>?              _notifStream;
   late StreamSubscription<dynamic> _authSub;
 
@@ -40,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _refreshAuthStreams() {
     _recentStream = CatchService.recentStream(limit: 5);
+    _statsStream  = CatchService.stream();
     _notifStream  = SocialService.unreadNotificationsStream();
   }
 
@@ -76,7 +78,14 @@ class _HomeScreenState extends State<HomeScreen> {
             child: _buildMyRecent(),
           ),
         ),
-        // 4. Hot Spots
+        // 4. Mes succès
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+            child: _buildMyAchievements(),
+          ),
+        ),
+        // 5. Hot Spots
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 140),
@@ -291,9 +300,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildFisherTile(int index, Map<String, dynamic> f) {
-    final name  = f['displayName'] as String? ?? 'Pêcheur';
-    final count = (f['catchCount'] as num?)?.toInt() ?? 0;
-    final rank  = index + 1;
+    final name     = f['displayName'] as String? ?? 'Pêcheur';
+    final username = f['username']    as String? ?? '';
+    final count    = (f['catchCount'] as num?)?.toInt() ?? 0;
+    final rank     = index + 1;
     final rankColor = rank == 1 ? FishdexTheme.golden
         : rank == 2 ? FishdexTheme.textSecondary
         : FishdexTheme.coral;
@@ -321,6 +331,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(name,
                     style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+                  if (username.isNotEmpty)
+                    Text('@$username',
+                      style: const TextStyle(color: FishdexTheme.primary, fontSize: 11, fontWeight: FontWeight.w500)),
                   Row(
                     children: [
                       const Icon(CupertinoIcons.star_fill, color: FishdexTheme.golden, size: 11),
@@ -465,6 +478,77 @@ class _HomeScreenState extends State<HomeScreen> {
     if (c.fishImageUrl != null) return Image.network(c.fishImageUrl!, fit: BoxFit.cover, width: double.infinity);
     return Container(color: FishdexTheme.primary.withOpacity(0.07),
       child: const Center(child: Text('🐟', style: TextStyle(fontSize: 26))));
+  }
+
+  // ── Mes succès ────────────────────────────────────────────────────
+  Widget _buildMyAchievements() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Mes succès',
+          style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+        const SizedBox(height: 12),
+        StreamBuilder<List<FishCatch>>(
+          stream: _statsStream ?? Stream.value([]),
+          builder: (context, snap) {
+            if (!AuthService.isLoggedIn) {
+              return GlassCard(child: const Padding(
+                padding: EdgeInsets.all(16),
+                child: Row(children: [
+                  Text('🔒', style: TextStyle(fontSize: 22)),
+                  SizedBox(width: 10),
+                  Text('Connecte-toi pour voir tes succès',
+                    style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
+                ]),
+              ));
+            }
+            final catches   = snap.data ?? [];
+            final total     = catches.length;
+            final species   = catches.map((c) => c.species).toSet().length;
+            final achv = [
+              _AchievementDef('🎣', 'Premier Lancer', total >= 1),
+              _AchievementDef('📖', 'Collectionneur', total >= 5),
+              _AchievementDef('🔬', 'Explorateur',    species >= 3),
+              _AchievementDef('🏆', 'Légende',         total >= 10),
+              _AchievementDef('🌊', 'Maître',          species >= 10),
+            ];
+            return SizedBox(
+              height: 100,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                children: achv.map((a) => _achievementBadge(a)).toList(),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _achievementBadge(_AchievementDef a) {
+    return Container(
+      width: 88,
+      margin: const EdgeInsets.only(right: 10),
+      decoration: BoxDecoration(
+        color: a.unlocked
+            ? FishdexTheme.golden.withOpacity(0.08)
+            : Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: a.unlocked
+              ? FishdexTheme.golden.withOpacity(0.3)
+              : Colors.black.withOpacity(0.06)),
+      ),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text(a.unlocked ? a.emoji : '🔒', style: const TextStyle(fontSize: 28)),
+        const SizedBox(height: 6),
+        Text(a.label, textAlign: TextAlign.center, maxLines: 2,
+          style: TextStyle(
+            color: a.unlocked ? FishdexTheme.golden : FishdexTheme.textTertiary,
+            fontSize: 9, fontWeight: a.unlocked ? FontWeight.w700 : FontWeight.w400)),
+      ]),
+    );
   }
 
   // ── Hot Spots ──────────────────────────────────────────────────────
@@ -636,6 +720,9 @@ class _FeedCard extends StatelessWidget {
                     children: [
                       Text(catch_.userName,
                         style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
+                      if (catch_.userHandle.isNotEmpty)
+                        Text('@${catch_.userHandle}',
+                          style: const TextStyle(color: FishdexTheme.primary, fontSize: 10, fontWeight: FontWeight.w500)),
                       Text(_ago(catch_.timestamp),
                         style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
                     ],
@@ -788,7 +875,10 @@ class _CommentsSheet extends StatefulWidget {
 
 class _CommentsSheetState extends State<_CommentsSheet> {
   final _ctrl    = TextEditingController();
-  bool _sending  = false;
+  bool  _sending = false;
+  // edit mode
+  String? _editingId;
+  final _editCtrl = TextEditingController();
 
   Future<void> _send() async {
     if (!AuthService.isLoggedIn) {
@@ -798,17 +888,45 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     }
     if (_ctrl.text.trim().isEmpty) return;
     setState(() => _sending = true);
-    await SocialService.addComment(
-      widget.catchId, _ctrl.text,
-      ownerUserId: widget.ownerUserId,
-      catchName: widget.catchName,
-    );
-    _ctrl.clear();
-    if (mounted) setState(() => _sending = false);
+    try {
+      final err = await SocialService.addComment(
+        widget.catchId, _ctrl.text,
+        ownerUserId: widget.ownerUserId,
+        catchName: widget.catchName,
+      );
+      if (err != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $err'), backgroundColor: FishdexTheme.coral));
+      } else {
+        _ctrl.clear();
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _saveEdit(String commentId) async {
+    if (_editCtrl.text.trim().isEmpty) return;
+    final err = await SocialService.editComment(
+        widget.catchId, commentId, _editCtrl.text);
+    if (err != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $err'), backgroundColor: FishdexTheme.coral));
+    } else {
+      if (mounted) setState(() => _editingId = null);
+    }
+  }
+
+  Future<void> _deleteComment(String commentId) async {
+    final err = await SocialService.deleteComment(widget.catchId, commentId);
+    if (err != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $err'), backgroundColor: FishdexTheme.coral));
+    }
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() { _ctrl.dispose(); _editCtrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -827,10 +945,10 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           Center(child: Container(width: 36, height: 4,
             decoration: BoxDecoration(color: Colors.black.withOpacity(0.12), borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
             child: Row(children: [
-              const Text('Commentaires', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+              Text('Commentaires', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
             ]),
           ),
           const SizedBox(height: 8),
@@ -839,6 +957,13 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             child: StreamBuilder<List<Comment>>(
               stream: SocialService.commentsStream(widget.catchId),
               builder: (context, snap) {
+                if (snap.hasError) {
+                  return Center(child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text('Erreur: ${snap.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: FishdexTheme.coral, fontSize: 13))));
+                }
                 final comments = snap.data ?? [];
                 if (comments.isEmpty) {
                   return const Center(
@@ -848,9 +973,13 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                 }
                 return ListView.builder(
                   itemCount: comments.length,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   itemBuilder: (_, i) {
-                    final c = comments[i];
+                    final c   = comments[i];
+                    final own = c.userId == AuthService.currentUserId;
+                    if (_editingId == c.id) {
+                      return _editRow(c);
+                    }
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Row(
@@ -860,16 +989,29 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                             decoration: BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary.withOpacity(0.10)),
                             child: const Center(child: Text('🎣', style: TextStyle(fontSize: 16)))),
                           const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Row(children: [
-                                Text(c.userName, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                                const SizedBox(width: 8),
-                                Text(_ago(c.timestamp), style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
-                              ]),
-                              Text(c.text, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Row(children: [
+                              Text(c.userName, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                              const SizedBox(width: 8),
+                              Text(_ago(c.timestamp), style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
                             ]),
-                          ),
+                            Text(c.text, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
+                          ])),
+                          if (own) ...[
+                            GestureDetector(
+                              onTap: () => setState(() {
+                                _editingId = c.id;
+                                _editCtrl.text = c.text;
+                              }),
+                              child: const Padding(
+                                padding: EdgeInsets.all(4),
+                                child: Icon(CupertinoIcons.pencil, color: FishdexTheme.primary, size: 15))),
+                            GestureDetector(
+                              onTap: () => _deleteComment(c.id),
+                              child: const Padding(
+                                padding: EdgeInsets.all(4),
+                                child: Icon(CupertinoIcons.trash, color: FishdexTheme.coral, size: 15))),
+                          ],
                         ],
                       ),
                     );
@@ -898,16 +1040,18 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
                       style: const TextStyle(fontSize: 14, color: FishdexTheme.textPrimary),
+                      onSubmitted: (_) => _send(),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: _sending ? null : _send,
+                GestureDetector(
+                  onTap: _sending ? null : _send,
                   child: Container(
                     width: 38, height: 38,
-                    decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _sending ? FishdexTheme.primary.withOpacity(0.5) : FishdexTheme.primary),
                     child: _sending
                         ? const CupertinoActivityIndicator(color: Colors.white)
                         : const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 16),
@@ -918,6 +1062,44 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _editRow(Comment c) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(children: [
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: FishdexTheme.primary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: FishdexTheme.primary.withOpacity(0.2)),
+            ),
+            child: TextField(
+              controller: _editCtrl,
+              autofocus: true,
+              style: const TextStyle(fontSize: 13, color: FishdexTheme.textPrimary),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        GestureDetector(
+          onTap: () => _saveEdit(c.id),
+          child: Container(width: 32, height: 32,
+            decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary),
+            child: const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 14))),
+        const SizedBox(width: 4),
+        GestureDetector(
+          onTap: () => setState(() => _editingId = null),
+          child: Container(width: 32, height: 32,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.06)),
+            child: const Icon(CupertinoIcons.xmark, color: FishdexTheme.textSecondary, size: 14))),
+      ]),
     );
   }
 
@@ -1041,4 +1223,10 @@ class _HotSpot {
   final String name, fish;
   final double rating, lat, lng;
   const _HotSpot(this.name, this.fish, this.rating, this.lat, this.lng);
+}
+
+class _AchievementDef {
+  final String emoji, label;
+  final bool unlocked;
+  const _AchievementDef(this.emoji, this.label, this.unlocked);
 }

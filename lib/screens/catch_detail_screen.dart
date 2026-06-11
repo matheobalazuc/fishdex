@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import '../models/catch_model.dart';
+import '../services/auth_service.dart';
 import '../services/catch_service.dart';
 import '../theme/fishdex_theme.dart';
 
@@ -96,25 +97,16 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
     });
   }
 
+  bool get _isOwner => _c.userId == AuthService.currentUserId;
+
   Future<void> _deleteCatch() async {
-    final ok = await showCupertinoDialog<bool>(
-      context: context,
-      builder: (_) => CupertinoAlertDialog(
-        title: const Text('Supprimer'),
-        content: Text('Supprimer "${_c.frenchName}" de ta collection ?'),
-        actions: [
-          CupertinoDialogAction(
-            isDestructiveAction: true,
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Supprimer'),
-          ),
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-        ],
-      ),
-    ) ?? false;
+    final ok = await _showModernConfirm(
+      context,
+      emoji: '🗑️',
+      title: 'Supprimer la prise ?',
+      subtitle: '"${_c.frenchName}" sera supprimée définitivement.',
+      confirmLabel: 'Supprimer',
+    );
     if (!ok) return;
     await CatchService.delete(_c.id!);
     if (mounted) Navigator.pop(context);
@@ -123,38 +115,57 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
   Future<void> _togglePublish() async {
     if (_c.id == null) return;
     if (!_c.isPublished) {
-      // Demander la visibilité
-      bool? isPrivate = await showCupertinoDialog<bool>(
-        context: context,
-        builder: (_) => CupertinoAlertDialog(
-          title: const Text('Publier dans le fil'),
-          content: const Text('Qui peut voir cette prise ?'),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('🌍 Public'),
-            ),
-            CupertinoDialogAction(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('🔒 Privé (amis)'),
-            ),
-            CupertinoDialogAction(
-              isDestructiveAction: true,
-              onPressed: () => Navigator.pop(context, null),
-              child: const Text('Annuler'),
-            ),
-          ],
-        ),
-      );
-      if (isPrivate == null) return;
-      await CatchService.update(_c.id!, {'isPublished': true, 'isPrivate': isPrivate});
-      setState(() => _c = _c.copyWith(isPublished: true, isPrivate: isPrivate));
+      final mode = await _showPublishSheet(context);
+      if (mode == null) return;
+      await CatchService.update(_c.id!, {'isPublished': true, 'isPrivate': mode == 1});
+      setState(() => _c = _c.copyWith(isPublished: true, isPrivate: mode == 1));
     } else {
-      // Dépublier
+      final ok = await _showModernConfirm(context,
+        emoji: '👁️',
+        title: 'Retirer du fil ?',
+        subtitle: 'La publication ne sera plus visible dans le fil.',
+        confirmLabel: 'Retirer',
+        confirmColor: FishdexTheme.golden,
+      );
+      if (!ok) return;
       await CatchService.update(_c.id!, {'isPublished': false});
       setState(() => _c = _c.copyWith(isPublished: false));
     }
   }
+
+  Future<int?> _showPublishSheet(BuildContext ctx) => showModalBottomSheet<int>(
+    context: ctx,
+    backgroundColor: Colors.transparent,
+    builder: (_) => Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.all(Radius.circular(28))),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2))),
+        const Text('📢', style: TextStyle(fontSize: 44)),
+        const SizedBox(height: 14),
+        const Text('Publier dans le fil', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        const Text('Qui peut voir cette prise ?', textAlign: TextAlign.center,
+          style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+        const SizedBox(height: 24),
+        GestureDetector(
+          onTap: () => Navigator.pop(ctx, 0),
+          child: Container(width: double.infinity, height: 52, margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(color: FishdexTheme.primary, borderRadius: BorderRadius.circular(16)),
+            child: const Center(child: Text('🌍  Public — Tout le monde', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)))),
+        ),
+        GestureDetector(
+          onTap: () => Navigator.pop(ctx, 1),
+          child: Container(width: double.infinity, height: 52,
+            decoration: BoxDecoration(color: FishdexTheme.golden, borderRadius: BorderRadius.circular(16)),
+            child: const Center(child: Text('🔒  Privé — Amis uniquement', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)))),
+        ),
+        const SizedBox(height: 4),
+      ]),
+    ),
+  );
 
   // ── Build ──────────────────────────────────────────────────────────
   @override
@@ -189,32 +200,34 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
         ),
       ),
       actions: [
-        // Supprimer
-        if (!_editMode)
+        if (_isOwner) ...[
+          // Supprimer
+          if (!_editMode)
+            CupertinoButton(
+              padding: const EdgeInsets.only(right: 4),
+              onPressed: _deleteCatch,
+              child: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.35)),
+                child: const Icon(CupertinoIcons.trash, color: Colors.white, size: 16),
+              ),
+            ),
+          // Éditer / Annuler
           CupertinoButton(
-            padding: const EdgeInsets.only(right: 4),
-            onPressed: _deleteCatch,
+            padding: const EdgeInsets.only(right: 12),
+            onPressed: () => setState(() {
+              _editMode = !_editMode;
+              if (!_editMode) { _initControllers(); _newImageBytes = null; }
+            }),
             child: Container(
               width: 36, height: 36,
               decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.35)),
-              child: const Icon(CupertinoIcons.trash, color: Colors.white, size: 16),
+              child: Icon(
+                _editMode ? CupertinoIcons.xmark : CupertinoIcons.pencil,
+                color: Colors.white, size: 16),
             ),
           ),
-        // Éditer / Annuler
-        CupertinoButton(
-          padding: const EdgeInsets.only(right: 12),
-          onPressed: () => setState(() {
-            _editMode = !_editMode;
-            if (!_editMode) { _initControllers(); _newImageBytes = null; }
-          }),
-          child: Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.35)),
-            child: Icon(
-              _editMode ? CupertinoIcons.xmark : CupertinoIcons.pencil,
-              color: Colors.white, size: 16),
-          ),
-        ),
+        ],
       ],
       flexibleSpace: FlexibleSpaceBar(
         background: GestureDetector(
@@ -359,9 +372,11 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
         const SizedBox(height: 16),
         _buildTop5(),
 
-        // Bouton publier
-        const SizedBox(height: 28),
-        _buildPublishButton(),
+        // Bouton publier (propriétaire uniquement)
+        if (_isOwner) ...[
+          const SizedBox(height: 28),
+          _buildPublishButton(),
+        ],
       ],
     );
   }
@@ -616,6 +631,54 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
 
   String _formatTime(DateTime d) =>
       '${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+Future<bool> _showModernConfirm(
+  BuildContext context, {
+  required String emoji, required String title,
+  required String subtitle, required String confirmLabel,
+  Color confirmColor = FishdexTheme.coral,
+}) async {
+  final result = await showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (_) => Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.all(Radius.circular(28))),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2))),
+        Text(emoji, style: const TextStyle(fontSize: 44)),
+        const SizedBox(height: 14),
+        Text(title, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text(subtitle, textAlign: TextAlign.center,
+          style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+        const SizedBox(height: 28),
+        Row(children: [
+          Expanded(child: GestureDetector(
+            onTap: () => Navigator.pop(context, false),
+            child: Container(height: 52,
+              decoration: BoxDecoration(color: Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(16)),
+              child: const Center(child: Text('Annuler',
+                style: TextStyle(color: FishdexTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 16)))),
+          )),
+          const SizedBox(width: 12),
+          Expanded(child: GestureDetector(
+            onTap: () => Navigator.pop(context, true),
+            child: Container(height: 52,
+              decoration: BoxDecoration(color: confirmColor, borderRadius: BorderRadius.circular(16)),
+              child: Center(child: Text(confirmLabel,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)))),
+          )),
+        ]),
+        const SizedBox(height: 4),
+      ]),
+    ),
+  );
+  return result ?? false;
 }
 
 // ── Visionneuse plein écran ────────────────────────────────────────

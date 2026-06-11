@@ -709,6 +709,7 @@ class _SaveSheetState extends State<_SaveSheet> {
     await CatchService.save(FishCatch(
       userId:       CatchService.userId,
       userName:     CatchService.userName,
+      userHandle:   AuthService.currentUserHandle,
       species:      widget.result.topSpecies,
       frenchName:   _fr(widget.result.topSpecies),
       family:       widget.result.family,

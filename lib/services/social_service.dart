@@ -44,62 +44,108 @@ class SocialService {
   static final _db = FirebaseFirestore.instance;
 
   // ── Likes ──────────────────────────────────────────────────────────
-  static Future<void> toggleLike(
+  static Future<String?> toggleLike(
       String catchId, String ownerUserId, String catchName) async {
     final uid = AuthService.currentUserId;
-    if (uid.isEmpty) return;
+    if (uid.isEmpty) return 'Non connecté';
+    try {
+      final ref  = _db.collection('catches').doc(catchId);
+      final snap = await ref.get();
+      if (!snap.exists) return 'Publication introuvable';
 
-    final ref = _db.collection('catches').doc(catchId);
-    final snap = await ref.get();
-    if (!snap.exists) return;
+      final likedBy = List<String>.from(snap.data()?['likedBy'] as List? ?? []);
+      final wasLiked = likedBy.contains(uid);
+      wasLiked ? likedBy.remove(uid) : likedBy.add(uid);
+      await ref.update({'likedBy': likedBy});
 
-    final likedBy = List<String>.from(snap.data()?['likedBy'] as List? ?? []);
-    final wasLiked = likedBy.contains(uid);
-    wasLiked ? likedBy.remove(uid) : likedBy.add(uid);
-    await ref.update({'likedBy': likedBy});
-
-    if (!wasLiked && uid != ownerUserId) {
-      await _db
-          .collection('notifications').doc(ownerUserId)
-          .collection('items').add({
-        'type':         'like',
-        'fromUserId':   uid,
-        'fromUserName': AuthService.currentUserName,
-        'catchId':      catchId,
-        'catchName':    catchName,
-        'timestamp':    FieldValue.serverTimestamp(),
-        'read':         false,
-      });
+      if (!wasLiked && uid != ownerUserId && ownerUserId.isNotEmpty) {
+        await _db
+            .collection('notifications').doc(ownerUserId)
+            .collection('items').add({
+          'type':         'like',
+          'fromUserId':   uid,
+          'fromUserName': AuthService.currentUserName,
+          'catchId':      catchId,
+          'catchName':    catchName,
+          'timestamp':    FieldValue.serverTimestamp(),
+          'read':         false,
+        });
+      }
+      return null;
+    } catch (e) {
+      return e.toString();
     }
   }
 
   // ── Commentaires ──────────────────────────────────────────────────
-  static Future<void> addComment(
+  static Future<String?> addComment(
       String catchId, String text,
       {required String ownerUserId, required String catchName}) async {
     final uid = AuthService.currentUserId;
-    if (uid.isEmpty || text.trim().isEmpty) return;
-    await _db.collection('catches').doc(catchId).collection('comments').add({
-      'userId':    uid,
-      'userName':  AuthService.currentUserName,
-      'text':      text.trim(),
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-    await _db.collection('catches').doc(catchId)
-        .update({'commentsCount': FieldValue.increment(1)});
-    if (uid != ownerUserId) {
-      await _db
-          .collection('notifications').doc(ownerUserId)
-          .collection('items').add({
-        'type':         'comment',
-        'fromUserId':   uid,
-        'fromUserName': AuthService.currentUserName,
-        'catchId':      catchId,
-        'catchName':    catchName,
-        'text':         text.trim(),
-        'timestamp':    FieldValue.serverTimestamp(),
-        'read':         false,
+    if (uid.isEmpty) return 'Non connecté';
+    if (text.trim().isEmpty) return 'Commentaire vide';
+    try {
+      await _db.collection('catches').doc(catchId).collection('comments').add({
+        'userId':    uid,
+        'userName':  AuthService.currentUserName,
+        'text':      text.trim(),
+        'timestamp': FieldValue.serverTimestamp(),
       });
+      await _db.collection('catches').doc(catchId)
+          .update({'commentsCount': FieldValue.increment(1)});
+      if (uid != ownerUserId && ownerUserId.isNotEmpty) {
+        await _db
+            .collection('notifications').doc(ownerUserId)
+            .collection('items').add({
+          'type':         'comment',
+          'fromUserId':   uid,
+          'fromUserName': AuthService.currentUserName,
+          'catchId':      catchId,
+          'catchName':    catchName,
+          'text':         text.trim(),
+          'timestamp':    FieldValue.serverTimestamp(),
+          'read':         false,
+        });
+      }
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  static Future<String?> deleteComment(String catchId, String commentId) async {
+    final uid = AuthService.currentUserId;
+    if (uid.isEmpty) return 'Non connecté';
+    try {
+      final ref = _db.collection('catches').doc(catchId)
+          .collection('comments').doc(commentId);
+      final doc = await ref.get();
+      if (!doc.exists) return 'Commentaire introuvable';
+      if ((doc.data()?['userId'] as String?) != uid) return 'Non autorisé';
+      await ref.delete();
+      await _db.collection('catches').doc(catchId)
+          .update({'commentsCount': FieldValue.increment(-1)});
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  static Future<String?> editComment(
+      String catchId, String commentId, String newText) async {
+    final uid = AuthService.currentUserId;
+    if (uid.isEmpty) return 'Non connecté';
+    if (newText.trim().isEmpty) return 'Commentaire vide';
+    try {
+      final ref = _db.collection('catches').doc(catchId)
+          .collection('comments').doc(commentId);
+      final doc = await ref.get();
+      if (!doc.exists) return 'Commentaire introuvable';
+      if ((doc.data()?['userId'] as String?) != uid) return 'Non autorisé';
+      await ref.update({'text': newText.trim()});
+      return null;
+    } catch (e) {
+      return e.toString();
     }
   }
 
@@ -116,7 +162,8 @@ class SocialService {
     return _db.collection('notifications').doc(uid).collection('items')
         .where('read', isEqualTo: false)
         .snapshots()
-        .map((s) => s.docs.length);
+        .map((s) => s.docs.length)
+        .handleError((_) => 0);
   }
 
   static Stream<List<AppNotification>> notificationsStream() {
@@ -128,18 +175,21 @@ class SocialService {
         .snapshots()
         .map((s) => s.docs
             .map((d) => AppNotification.fromDoc(d.id, d.data()))
-            .toList());
+            .toList())
+        .handleError((_) => <AppNotification>[]);
   }
 
   static Future<void> markAllRead() async {
     final uid = AuthService.currentUserId;
     if (uid.isEmpty) return;
-    final batch = _db.batch();
-    final docs = await _db.collection('notifications').doc(uid).collection('items')
-        .where('read', isEqualTo: false).get();
-    for (final doc in docs.docs) {
-      batch.update(doc.reference, {'read': true});
-    }
-    if (docs.docs.isNotEmpty) await batch.commit();
+    try {
+      final batch = _db.batch();
+      final docs = await _db.collection('notifications').doc(uid).collection('items')
+          .where('read', isEqualTo: false).get();
+      for (final doc in docs.docs) {
+        batch.update(doc.reference, {'read': true});
+      }
+      if (docs.docs.isNotEmpty) await batch.commit();
+    } catch (_) {}
   }
 }

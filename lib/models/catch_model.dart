@@ -4,6 +4,7 @@ class FishCatch {
   final String? id;
   final String userId;
   final String userName;
+  final String userHandle;
   final String species;
   final String frenchName;
   final String family;
@@ -26,6 +27,7 @@ class FishCatch {
     this.id,
     required this.userId,
     this.userName = 'Pêcheur',
+    this.userHandle = '',
     required this.species,
     required this.frenchName,
     required this.family,
@@ -68,6 +70,7 @@ class FishCatch {
     id:           id,
     userId:       userId,
     userName:     userName,
+    userHandle:   userHandle,
     species:      species      ?? this.species,
     frenchName:   frenchName   ?? this.frenchName,
     family:       family       ?? this.family,
@@ -90,6 +93,7 @@ class FishCatch {
   Map<String, dynamic> toFirestore() => {
     'userId':       userId,
     'userName':     userName,
+    'userHandle':   userHandle,
     'species':      species,
     'frenchName':   frenchName,
     'family':       family,
@@ -108,9 +112,10 @@ class FishCatch {
 
   factory FishCatch.fromFirestore(String id, Map<String, dynamic> d) => FishCatch(
     id:           id,
-    userId:       d['userId']    as String? ?? '',
-    userName:     d['userName']  as String? ?? 'Pêcheur',
-    species:      d['species']   as String? ?? '',
+    userId:       d['userId']      as String? ?? '',
+    userName:     d['userName']    as String? ?? 'Pêcheur',
+    userHandle:   d['userHandle']  as String? ?? '',
+    species:      d['species']     as String? ?? '',
     frenchName:   d['frenchName']as String? ?? '',
     family:       d['family']    as String? ?? '',
     confidence:   (d['confidence'] as num?)?.toDouble() ?? 0,
