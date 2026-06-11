@@ -38,6 +38,24 @@
   </style>
 </head>
 <body>
+  <script>
+  // iOS PWA ne re-fetche pas index.html au lancement (restore depuis cache local).
+  // Ce script fetche version.json avec cache:'no-store' (toujours réseau),
+  // compare avec la version stockée, et force un reload si nouveau déploiement.
+  (function(){
+    var K='fdx_v';
+    fetch('/version.json?t='+Date.now(),{cache:'no-store'})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var v=d&&d.v?String(d.v):null;
+        if(!v)return;
+        var old=localStorage.getItem(K);
+        localStorage.setItem(K,v);
+        if(old&&old!==v)window.location.reload(true);
+      })
+      .catch(function(){});
+  })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
