@@ -12,9 +12,9 @@ const _kName      = 'Alex Pêcheur';
 const _kUsername  = '@alex_fish';
 const _kLocation  = 'Nice 🌊';
 const _kLevel     = 12;
-const _kVersion   = '1.0.0';
-const _kBuildDate = '10/06/2026';
-const _kUpdateTime = '14:32';
+const _kVersion   = '1.0.2';
+const _kBuildDate = '11/06/2026';
+const _kUpdateTime = '20:32';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
