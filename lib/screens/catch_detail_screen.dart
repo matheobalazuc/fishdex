@@ -336,13 +336,12 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
   }
 
   void _openFullScreen(BuildContext ctx) {
-    final Widget? img;
+    Widget? img;
     if (_c.imageBase64 != null && _c.imageBase64!.isNotEmpty) {
       try { img = Image.memory(base64Decode(_c.imageBase64!), fit: BoxFit.contain); } catch (_) { img = null; }
-    } else { img = null; }
-    final Widget? net = _c.fishImageUrl != null
-        ? Image.network(_c.fishImageUrl!, fit: BoxFit.contain) : null;
-    final Widget? display = img ?? net;
+    }
+    final Widget? display = img ?? (_c.fishImageUrl != null
+        ? Image.network(_c.fishImageUrl!, fit: BoxFit.contain) : null);
     if (display != null) _pushFullScreen(ctx, display);
   }
 
