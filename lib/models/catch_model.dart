@@ -26,6 +26,7 @@ class FishCatch {
   final double? lat;
   final double? lng;
   final double? locationRadius;  // km, null = exact
+  final bool isManualEntry;
   // Social (gérés par SocialService, jamais écrasés via toFirestore)
   final List<String> likedBy;
   final int commentsCount;
@@ -57,6 +58,7 @@ class FishCatch {
     this.lat,
     this.lng,
     this.locationRadius,
+    this.isManualEntry = false,
     this.likedBy = const [],
     this.commentsCount = 0,
     this.lastCommentText,
@@ -82,6 +84,7 @@ class FishCatch {
     double? lat,
     double? lng,
     double? locationRadius,
+    bool? isManualEntry,
     List<String>? likedBy,
     int? commentsCount,
     bool clearImage    = false,
@@ -114,6 +117,7 @@ class FishCatch {
     lat:              lat            ?? this.lat,
     lng:              lng            ?? this.lng,
     locationRadius:   locationRadius ?? this.locationRadius,
+    isManualEntry:    isManualEntry  ?? this.isManualEntry,
     likedBy:          likedBy        ?? this.likedBy,
     commentsCount:    commentsCount ?? this.commentsCount,
     lastCommentText:  lastCommentText ?? this.lastCommentText,
@@ -144,6 +148,7 @@ class FishCatch {
     if (lat            != null) 'lat':            lat,
     if (lng            != null) 'lng':            lng,
     if (locationRadius != null) 'locationRadius': locationRadius,
+    'isManualEntry': isManualEntry,
   };
 
   factory FishCatch.fromFirestore(String id, Map<String, dynamic> d) => FishCatch(
@@ -173,6 +178,7 @@ class FishCatch {
     lat:            (d['lat']            as num?)?.toDouble(),
     lng:            (d['lng']            as num?)?.toDouble(),
     locationRadius: (d['locationRadius'] as num?)?.toDouble(),
+    isManualEntry:  d['isManualEntry'] as bool? ?? false,
     likedBy:          List<String>.from(d['likedBy'] as List? ?? []),
     commentsCount:    (d['commentsCount']  as num?)?.toInt() ?? 0,
     lastCommentText:  d['lastCommentText'] as String?,

@@ -4,15 +4,21 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/catch_model.dart';
 import '../services/auth_service.dart';
 import '../services/catch_service.dart';
 import '../services/hotspot_service.dart';
+import '../services/messaging_service.dart';
 import '../services/social_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 import 'catch_detail_screen.dart';
+import 'conversation_screen.dart';
 import 'fishing_calendar_screen.dart';
 import 'fishing_map_screen.dart';
 import 'user_profile_screen.dart';
@@ -740,8 +746,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showAddHotspotSheet(BuildContext context) {
-    final nameCtrl = TextEditingController();
-    final fishCtrl = TextEditingController();
+    final nameCtrl      = TextEditingController();
+    final fishCtrl      = TextEditingController();
+    final mapController = MapController();
 
     showModalBottomSheet(
       context: context,
@@ -749,8 +756,72 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setState) {
-          bool saving = false;
+          bool    saving       = false;
+          bool    locating     = false;
+          bool    showMap      = false;
+          double? lat;
+          double? lng;
+          double  radius       = 0;
+          String? locationName;
+
+          Future<void> detectGPS() async {
+            setState(() => locating = true);
+            try {
+              bool ok = await Geolocator.isLocationServiceEnabled();
+              if (!ok) return;
+              LocationPermission perm = await Geolocator.checkPermission();
+              if (perm == LocationPermission.denied) {
+                perm = await Geolocator.requestPermission();
+              }
+              if (perm == LocationPermission.denied ||
+                  perm == LocationPermission.deniedForever) return;
+              final pos = await Geolocator.getCurrentPosition(
+                  desiredAccuracy: LocationAccuracy.medium,
+                  timeLimit: const Duration(seconds: 10));
+              setState(() { lat = pos.latitude; lng = pos.longitude; });
+              mapController.move(LatLng(pos.latitude, pos.longitude), 13);
+              final uri = Uri.parse(
+                'https://nominatim.openstreetmap.org/reverse?lat=${pos.latitude}&lon=${pos.longitude}&format=json&accept-language=fr');
+              final resp = await http.get(uri, headers: {'User-Agent': 'Fishdex/1.0'})
+                  .timeout(const Duration(seconds: 8));
+              if (resp.statusCode == 200) {
+                final d    = jsonDecode(resp.body) as Map<String, dynamic>;
+                final addr = d['address'] as Map<String, dynamic>?;
+                final city = addr?['city'] ?? addr?['town'] ?? addr?['village'];
+                final dept = addr?['county'] ?? addr?['state'];
+                final parts = <String>[];
+                if (city != null) parts.add(city as String);
+                if (dept  != null) parts.add(dept  as String);
+                if (parts.isNotEmpty) setState(() => locationName = parts.join(', '));
+              }
+            } catch (_) {}
+            setState(() => locating = false);
+          }
+
+          Future<void> onMapTap(LatLng point) async {
+            setState(() { lat = point.latitude; lng = point.longitude; locating = true; });
+            try {
+              final uri = Uri.parse(
+                'https://nominatim.openstreetmap.org/reverse?lat=${point.latitude}&lon=${point.longitude}&format=json&accept-language=fr');
+              final resp = await http.get(uri, headers: {'User-Agent': 'Fishdex/1.0'})
+                  .timeout(const Duration(seconds: 8));
+              if (resp.statusCode == 200) {
+                final d    = jsonDecode(resp.body) as Map<String, dynamic>;
+                final addr = d['address'] as Map<String, dynamic>?;
+                final city = addr?['city'] ?? addr?['town'] ?? addr?['village'];
+                final dept = addr?['county'] ?? addr?['state'];
+                final parts = <String>[];
+                if (city != null) parts.add(city as String);
+                if (dept  != null) parts.add(dept  as String);
+                if (parts.isNotEmpty) setState(() => locationName = parts.join(', '));
+              }
+            } catch (_) {}
+            setState(() => locating = false);
+          }
+
           final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+          final hasPin = lat != null && lng != null;
+
           return Container(
             margin: const EdgeInsets.all(12),
             padding: EdgeInsets.fromLTRB(24, 8, 24, 24 + bottom),
@@ -758,12 +829,15 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.all(Radius.circular(28)),
             ),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
+            child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
               Center(child: Container(width: 36, height: 4,
                 margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2)))),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(2)))),
               const Text('📍 Ajouter un Hot Spot',
-                style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+                style: TextStyle(
+                  color: FishdexTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               Text('Partage ton spot avec la communauté',
                 style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
@@ -771,14 +845,135 @@ class _HomeScreenState extends State<HomeScreen> {
               _spotField('Nom du spot', nameCtrl, 'Ex: Lac de Sainte-Croix'),
               const SizedBox(height: 12),
               _spotField('Espèces présentes', fishCtrl, 'Ex: Truite, Brochet'),
+              const SizedBox(height: 16),
+
+              // ── Localisation ─────────────────────────────────────
+              Row(children: [
+                const Text('📍',
+                  style: TextStyle(
+                    color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(width: 6),
+                const Expanded(child: Text('LOCALISATION (OPTIONNEL)',
+                  style: TextStyle(
+                    color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600))),
+                // GPS button
+                GestureDetector(
+                  onTap: locating ? null : detectGPS,
+                  child: Container(
+                    height: 36, width: 36,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: FishdexTheme.primary.withOpacity(0.10),
+                      border: Border.all(color: FishdexTheme.primary.withOpacity(0.25))),
+                    child: locating
+                        ? const Center(child: CupertinoActivityIndicator())
+                        : const Icon(CupertinoIcons.location_fill,
+                            color: FishdexTheme.primary, size: 16))),
+                const SizedBox(width: 6),
+                // Toggle map
+                GestureDetector(
+                  onTap: () => setState(() => showMap = !showMap),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    height: 36, width: 36,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: showMap
+                          ? FishdexTheme.primary
+                          : FishdexTheme.primary.withOpacity(0.08),
+                      border: Border.all(color: FishdexTheme.primary.withOpacity(0.3))),
+                    child: Icon(CupertinoIcons.map_fill,
+                      color: showMap ? Colors.white : FishdexTheme.primary, size: 14))),
+              ]),
+
+              if (locationName != null) ...[
+                const SizedBox(height: 6),
+                Row(children: [
+                  const Icon(CupertinoIcons.location, color: FishdexTheme.primary, size: 13),
+                  const SizedBox(width: 4),
+                  Text(locationName!,
+                    style: const TextStyle(
+                      color: FishdexTheme.textSecondary, fontSize: 12)),
+                ]),
+              ],
+
+              if (showMap) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(height: 220,
+                    child: FlutterMap(
+                      mapController: mapController,
+                      options: MapOptions(
+                        initialCenter: hasPin
+                            ? LatLng(lat!, lng!)
+                            : const LatLng(46.5, 2.5),
+                        initialZoom: hasPin ? 12.0 : 5.0,
+                        onTap: (_, point) => onMapTap(point)),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.fishdex.app'),
+                        if (hasPin) ...[
+                          if (radius > 0)
+                            CircleLayer(circles: [CircleMarker(
+                              point: LatLng(lat!, lng!),
+                              radius: radius * 1000,
+                              useRadiusInMeter: true,
+                              color: FishdexTheme.primary.withOpacity(0.12),
+                              borderColor: FishdexTheme.primary.withOpacity(0.5),
+                              borderStrokeWidth: 2)]),
+                          MarkerLayer(markers: [Marker(
+                            point: LatLng(lat!, lng!),
+                            child: locating
+                                ? const CupertinoActivityIndicator()
+                                : const Icon(CupertinoIcons.location_fill,
+                                    color: FishdexTheme.coral, size: 30))]),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                if (hasPin) ...[
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    const Icon(CupertinoIcons.circle,
+                      color: FishdexTheme.primary, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Périmètre : ${radius == 0 ? "Position exacte" : "${radius.toStringAsFixed(0)} km"}',
+                      style: const TextStyle(
+                        color: FishdexTheme.textSecondary,
+                        fontSize: 12, fontWeight: FontWeight.w500)),
+                  ]),
+                  SliderTheme(
+                    data: SliderTheme.of(ctx).copyWith(
+                      activeTrackColor:   FishdexTheme.primary,
+                      thumbColor:         FishdexTheme.primary,
+                      inactiveTrackColor: FishdexTheme.primary.withOpacity(0.15),
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8)),
+                    child: Slider(
+                      value: radius, min: 0, max: 20, divisions: 20,
+                      onChanged: (v) => setState(() => radius = v))),
+                  const Text('0 = position exacte · slider pour masquer le spot précis',
+                    style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 10)),
+                ],
+              ],
+
               const SizedBox(height: 20),
               GestureDetector(
                 onTap: saving ? null : () async {
-                  if (nameCtrl.text.trim().isEmpty || fishCtrl.text.trim().isEmpty) return;
+                  if (nameCtrl.text.trim().isEmpty ||
+                      fishCtrl.text.trim().isEmpty) return;
                   setState(() => saving = true);
                   final err = await HotspotService.add(
-                    name: nameCtrl.text.trim(),
-                    fish: fishCtrl.text.trim(),
+                    name:   nameCtrl.text.trim(),
+                    fish:   fishCtrl.text.trim(),
+                    lat:    lat ?? 0,
+                    lng:    lng ?? 0,
+                    radius: radius > 0 ? radius : null,
                   );
                   if (err != null && ctx.mounted) {
                     ScaffoldMessenger.of(ctx).showSnackBar(
@@ -791,15 +986,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Container(
                   width: double.infinity, height: 52,
                   decoration: BoxDecoration(
-                    color: saving ? FishdexTheme.primary.withOpacity(0.5) : FishdexTheme.primary,
+                    color: saving
+                        ? FishdexTheme.primary.withOpacity(0.5)
+                        : FishdexTheme.primary,
                     borderRadius: BorderRadius.circular(16)),
                   child: Center(child: saving
                     ? const CupertinoActivityIndicator(color: Colors.white)
                     : const Text('Ajouter le spot',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16))),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16))),
                 ),
               ),
-            ]),
+            ])),
           );
         },
       ),
@@ -1352,11 +1552,29 @@ class _NotificationsSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 itemCount: notifs.length,
                 itemBuilder: (context, i) {
-                  final n      = notifs[i];
-                  final isLike = n.type == 'like';
+                  final n        = notifs[i];
+                  final isLike   = n.type == 'like';
+                  final isFollow = n.type == 'follow';
+                  final isMsg    = n.type == 'message';
+                  final emoji    = isLike ? '❤️' : isFollow ? '👤' : isMsg ? '💬' : '💬';
+                  final color    = isLike
+                      ? FishdexTheme.coral
+                      : isFollow ? FishdexTheme.mint : FishdexTheme.primary;
+
                   return GestureDetector(
                     onTap: () async {
                       Navigator.pop(context);
+                      if (isFollow) return;
+                      if (isMsg) {
+                        Navigator.push(context, CupertinoPageRoute(
+                          builder: (_) => ConversationScreen(
+                            convId:      n.catchId,
+                            otherUid:    '',
+                            otherName:   n.fromUserName,
+                            otherHandle: '',
+                          )));
+                        return;
+                      }
                       final catch_ = await CatchService.getById(n.catchId);
                       if (catch_ != null && context.mounted) {
                         Navigator.push(context,
@@ -1375,27 +1593,46 @@ class _NotificationsSheet extends StatelessWidget {
                         Container(width: 36, height: 36,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: (isLike ? FishdexTheme.coral : FishdexTheme.primary).withOpacity(0.10)),
-                          child: Center(child: Text(isLike ? '❤️' : '💬',
+                            color: color.withOpacity(0.10)),
+                          child: Center(child: Text(emoji,
                             style: const TextStyle(fontSize: 16)))),
                         const SizedBox(width: 12),
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           RichText(text: TextSpan(
-                            style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 13),
+                            style: const TextStyle(
+                              color: FishdexTheme.textPrimary, fontSize: 13),
                             children: [
-                              TextSpan(text: n.fromUserName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                              TextSpan(text: isLike ? ' a aimé ta prise ' : ' a commenté ta prise '),
-                              TextSpan(text: n.catchName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              TextSpan(text: n.fromUserName,
+                                style: const TextStyle(fontWeight: FontWeight.w700)),
+                              if (isLike)
+                                const TextSpan(text: ' a aimé ta prise '),
+                              if (!isLike && !isFollow && !isMsg)
+                                const TextSpan(text: ' a commenté ta prise '),
+                              if (isFollow)
+                                const TextSpan(text: ' s\'est abonné(e) à ton profil'),
+                              if (isMsg)
+                                const TextSpan(text: ' t\'a envoyé un message'),
+                              if ((isLike || (!isLike && !isFollow && !isMsg)) &&
+                                  n.catchName.isNotEmpty)
+                                TextSpan(text: n.catchName,
+                                  style: const TextStyle(fontWeight: FontWeight.w600)),
                             ],
                           )),
-                          if (n.commentText != null)
+                          if (n.commentText != null && isMsg)
+                            Text('« ${n.commentText ?? n.catchName} »',
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: FishdexTheme.textTertiary, fontSize: 11)),
+                          if (n.commentText != null && !isMsg)
                             Text('« ${n.commentText} »',
                               maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+                              style: const TextStyle(
+                                color: FishdexTheme.textTertiary, fontSize: 11)),
                         ])),
                         if (!n.read)
                           Container(width: 8, height: 8,
-                            decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary)),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle, color: color)),
                       ]),
                     ),
                   );

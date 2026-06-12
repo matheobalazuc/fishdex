@@ -106,6 +106,7 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
   bool _aiEnabled  = true;
   String? _error;
   _Result? _result;
+  String   _selectedSpecies = '';
   String?  _fishImageUrl;
   XFile?    _pickedFile;
   Uint8List? _imageBytes;
@@ -150,7 +151,10 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
         final r = _Result.fromJson(jsonDecode(body) as Map<String, dynamic>);
         final imgUrl = await WikiService.getFishImageUrl(r.topSpecies);
         if (!mounted) return;
-        setState(() { _result = r; _fishImageUrl = imgUrl; _isScanning = false; });
+        setState(() {
+          _result = r; _fishImageUrl = imgUrl; _isScanning = false;
+          _selectedSpecies = r.topSpecies;
+        });
       } else {
         setState(() { _error = 'Erreur serveur (${streamed.statusCode})'; _isScanning = false; });
       }
@@ -171,13 +175,14 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (_) => _SaveSheet(
         result: _result, imageBytes: _imageBytes, fishImageUrl: _fishImageUrl,
+        selectedSpecies: _selectedSpecies,
         onSaved: () { if (mounted) setState(() => _saved = true); }));
   }
 
   void _reset() => setState(() {
     _pickedFile = null; _imageBytes = null; _result = null;
     _error = null; _fishImageUrl = null; _isScanning = false;
-    _saved = false; _showDetail = false;
+    _saved = false; _showDetail = false; _selectedSpecies = '';
   });
 
   @override
@@ -356,40 +361,45 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
               style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             ...r.top5.asMap().entries.map((e) {
-              final i  = e.key;
-              final sp = e.value;
+              final i   = e.key;
+              final sp  = e.value;
+              final sel = _selectedSpecies == sp.species;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: GestureDetector(
-                  onTap: () => setState(() {
-                    // pre-select will be handled in save sheet, just open it
-                  }),
-                  child: Container(
+                  onTap: () => setState(() => _selectedSpecies = sp.species),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      color: i == 0 ? FishdexTheme.primary.withOpacity(0.07) : Colors.black.withOpacity(0.02),
+                      color: sel ? FishdexTheme.primary.withOpacity(0.08) : Colors.black.withOpacity(0.02),
                       border: Border.all(
-                        color: i == 0 ? FishdexTheme.primary.withOpacity(0.3) : Colors.black.withOpacity(0.06),
-                        width: i == 0 ? 1.5 : 1)),
+                        color: sel ? FishdexTheme.primary.withOpacity(0.4) : Colors.black.withOpacity(0.06),
+                        width: sel ? 1.5 : 1)),
                     child: Row(children: [
                       Container(width: 26, height: 26,
                         decoration: BoxDecoration(shape: BoxShape.circle,
-                          color: i == 0 ? FishdexTheme.primary.withOpacity(0.12) : Colors.black.withOpacity(0.04)),
+                          color: sel ? FishdexTheme.primary.withOpacity(0.12) : Colors.black.withOpacity(0.04)),
                         child: Center(child: Text('${i + 1}',
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                            color: i == 0 ? FishdexTheme.primary : FishdexTheme.textTertiary)))),
+                            color: sel ? FishdexTheme.primary : FishdexTheme.textTertiary)))),
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(_fr(sp.species), style: TextStyle(
-                          color: i == 0 ? FishdexTheme.textPrimary : FishdexTheme.textSecondary,
-                          fontSize: 13, fontWeight: i == 0 ? FontWeight.w600 : FontWeight.w400)),
+                          color: sel ? FishdexTheme.textPrimary : FishdexTheme.textSecondary,
+                          fontSize: 13, fontWeight: sel ? FontWeight.w700 : FontWeight.w400)),
                         Text(sp.species, style: const TextStyle(
                           color: FishdexTheme.textTertiary, fontSize: 10, fontStyle: FontStyle.italic)),
                       ])),
                       Text('${(sp.score * 100).toStringAsFixed(0)}%',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                          color: i == 0 ? FishdexTheme.primary : FishdexTheme.textTertiary)),
+                          color: sel ? FishdexTheme.primary : FishdexTheme.textTertiary)),
+                      if (sel) ...[
+                        const SizedBox(width: 6),
+                        const Icon(CupertinoIcons.checkmark_circle_fill,
+                          color: FishdexTheme.primary, size: 16),
+                      ],
                     ]),
                   ),
                 ),
@@ -459,7 +469,7 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
             Icon(_saved ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.tray_arrow_down,
               color: Colors.white, size: 18),
             const SizedBox(width: 8),
-            Text(_saved ? 'Enregistré !' : 'Enregistrer la prise',
+            Text(_saved ? 'Enregistré !' : 'Remplir la fiche descriptive →',
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
           ])),
         ),
@@ -511,15 +521,17 @@ const _seaOptions = [
 
 // ── Feuille de sauvegarde ─────────────────────────────────────────────
 class _SaveSheet extends StatefulWidget {
-  final _Result?    result;
-  final Uint8List?  imageBytes;
-  final String?     fishImageUrl;
+  final _Result?     result;
+  final Uint8List?   imageBytes;
+  final String?      fishImageUrl;
+  final String       selectedSpecies;
   final VoidCallback onSaved;
 
   const _SaveSheet({
     required this.result,
     required this.imageBytes,
     required this.fishImageUrl,
+    required this.selectedSpecies,
     required this.onSaved,
   });
 
@@ -528,9 +540,6 @@ class _SaveSheet extends StatefulWidget {
 }
 
 class _SaveSheetState extends State<_SaveSheet> {
-  // ── Selected species (AI mode) ────────────────────────────────────
-  late String _selectedSpecies;
-
   // ── Common fields ─────────────────────────────────────────────────
   final _sizeCtrl   = TextEditingController();
   final _weightCtrl = TextEditingController();
@@ -556,12 +565,6 @@ class _SaveSheetState extends State<_SaveSheet> {
   final _mapController = MapController();
 
   bool get _isManual => widget.result == null;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedSpecies = widget.result?.topSpecies ?? '';
-  }
 
   @override
   void dispose() {
@@ -628,10 +631,11 @@ class _SaveSheetState extends State<_SaveSheet> {
     setState(() => _saving = true);
     final b64        = widget.imageBytes != null ? base64Encode(widget.imageBytes!) : null;
     final r          = widget.result;
-    final species    = _isManual ? (_latinCtrl.text.trim().isNotEmpty ? _latinCtrl.text.trim() : _nameCtrl.text.trim()) : _selectedSpecies;
-    final frenchName = _isManual ? _nameCtrl.text.trim() : _fr(_selectedSpecies);
+    final sel        = widget.selectedSpecies;
+    final species    = _isManual ? (_latinCtrl.text.trim().isNotEmpty ? _latinCtrl.text.trim() : _nameCtrl.text.trim()) : sel;
+    final frenchName = _isManual ? _nameCtrl.text.trim() : _fr(sel);
     final family     = _isManual ? (_familyCtrl.text.trim().isNotEmpty ? _familyCtrl.text.trim() : 'Inconnue') : r!.family;
-    final confidence = _isManual ? 1.0 : (r?.top5.firstWhere((e) => e.species == _selectedSpecies, orElse: () => r!.top5.first).score ?? r!.topScore);
+    final confidence = _isManual ? 1.0 : (r?.top5.firstWhere((e) => e.species == sel, orElse: () => r!.top5.first).score ?? r!.topScore);
     final top5       = _isManual
         ? [{'species': species, 'score': 1.0}]
         : r!.top5.map((e) => {'species': e.species, 'score': e.score}).toList();
@@ -660,6 +664,7 @@ class _SaveSheetState extends State<_SaveSheet> {
       lat:            _lat,
       lng:            _lng,
       locationRadius: _locationRadius > 0 ? _locationRadius : null,
+      isManualEntry:  _isManual,
     ));
     if (!mounted) return;
     widget.onSaved();
@@ -690,9 +695,9 @@ class _SaveSheetState extends State<_SaveSheet> {
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (!_isManual) ...[
-                Text(_fr(_selectedSpecies),
+                Text(_fr(widget.selectedSpecies),
                   style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
-                Text(_selectedSpecies,
+                Text(widget.selectedSpecies,
                   style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
               ] else ...[
                 const Text('Saisie manuelle',
@@ -703,62 +708,6 @@ class _SaveSheetState extends State<_SaveSheet> {
             ])),
           ]),
           const SizedBox(height: 20),
-
-          // ── Sélecteur d'espèce IA ────────────────────────────────
-          if (!_isManual && widget.result != null) ...[
-            _sectionLabel('🤖', 'POISSON RECONNU — CHOISIS TON ESPÈCE'),
-            const SizedBox(height: 8),
-            ...widget.result!.top5.asMap().entries.map((e) {
-              final i  = e.key;
-              final sp = e.value;
-              final sel = _selectedSpecies == sp.species;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedSpecies = sp.species),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      color: sel ? FishdexTheme.primary.withOpacity(0.08) : Colors.black.withOpacity(0.02),
-                      border: Border.all(
-                        color: sel ? FishdexTheme.primary.withOpacity(0.4) : Colors.black.withOpacity(0.06),
-                        width: sel ? 1.5 : 1)),
-                    child: Row(children: [
-                      Container(width: 28, height: 28,
-                        decoration: BoxDecoration(shape: BoxShape.circle,
-                          color: sel ? FishdexTheme.primary.withOpacity(0.15) : Colors.black.withOpacity(0.04)),
-                        child: Center(child: Text('${i + 1}',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                            color: sel ? FishdexTheme.primary : FishdexTheme.textTertiary)))),
-                      const SizedBox(width: 10),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(_fr(sp.species), style: TextStyle(
-                          color: sel ? FishdexTheme.textPrimary : FishdexTheme.textSecondary,
-                          fontSize: 14, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
-                        Text(sp.species, style: const TextStyle(
-                          color: FishdexTheme.textTertiary, fontSize: 11, fontStyle: FontStyle.italic)),
-                      ])),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: sel ? FishdexTheme.primary.withOpacity(0.12) : Colors.black.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(8)),
-                        child: Text('${(sp.score * 100).toStringAsFixed(0)}%',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                            color: sel ? FishdexTheme.primary : FishdexTheme.textTertiary))),
-                      if (sel) ...[
-                        const SizedBox(width: 6),
-                        const Icon(CupertinoIcons.checkmark_circle_fill, color: FishdexTheme.primary, size: 18),
-                      ],
-                    ]),
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 20),
-          ],
 
           // ── Identification manuelle ───────────────────────────────
           if (_isManual) ...[

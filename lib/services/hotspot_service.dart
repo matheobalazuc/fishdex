@@ -4,12 +4,14 @@ import 'auth_service.dart';
 class Hotspot {
   final String id, name, fish, userId, userHandle;
   final double rating, lat, lng;
+  final double? radius;  // km, null = exact
   final DateTime createdAt;
 
   const Hotspot({
     required this.id, required this.name, required this.fish,
     required this.userId, required this.userHandle,
     required this.rating, required this.lat, required this.lng,
+    this.radius,
     required this.createdAt,
   });
 
@@ -22,6 +24,7 @@ class Hotspot {
     rating:     (d['rating']    as num?)?.toDouble() ?? 4.0,
     lat:        (d['lat']       as num?)?.toDouble() ?? 0,
     lng:        (d['lng']       as num?)?.toDouble() ?? 0,
+    radius:     (d['radius']    as num?)?.toDouble(),
     createdAt:  (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
   );
 }
@@ -49,6 +52,7 @@ class HotspotService {
     required String fish,
     double lat = 0,
     double lng = 0,
+    double? radius,
     double rating = 4.0,
   }) async {
     final uid = AuthService.currentUserId;
@@ -59,6 +63,7 @@ class HotspotService {
         'fish':       fish,
         'lat':        lat,
         'lng':        lng,
+        if (radius != null && radius > 0) 'radius': radius,
         'rating':     rating,
         'userId':     uid,
         'userHandle': AuthService.currentUserHandle,

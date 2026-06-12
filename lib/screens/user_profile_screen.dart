@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import '../models/catch_model.dart';
 import '../services/auth_service.dart';
 import '../services/follow_service.dart';
+import '../services/messaging_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 import 'catch_detail_screen.dart';
+import 'conversation_screen.dart';
 
 class UserProfileScreen extends StatelessWidget {
   final String userId;
@@ -106,38 +108,74 @@ class UserProfileScreen extends StatelessWidget {
           if (!isOwn && AuthService.isLoggedIn)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: StreamBuilder<bool>(
-                stream: FollowService.isFollowingStream(userId),
-                builder: (context, snap) {
-                  final following = snap.data ?? false;
-                  return GestureDetector(
-                    onTap: () async {
-                      if (following) {
-                        await FollowService.unfollow(userId);
-                      } else {
-                        await FollowService.follow(userId);
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: double.infinity, height: 46,
-                      decoration: BoxDecoration(
-                        color: following ? Colors.transparent : FishdexTheme.primary,
-                        borderRadius: BorderRadius.circular(14),
-                        border: following
-                            ? Border.all(color: FishdexTheme.primary, width: 1.5)
-                            : null,
+              child: Row(children: [
+                Expanded(child: StreamBuilder<bool>(
+                  stream: FollowService.isFollowingStream(userId),
+                  builder: (context, snap) {
+                    final following = snap.data ?? false;
+                    return GestureDetector(
+                      onTap: () async {
+                        if (following) {
+                          await FollowService.unfollow(userId);
+                        } else {
+                          await FollowService.follow(userId);
+                        }
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: following ? Colors.transparent : FishdexTheme.primary,
+                          borderRadius: BorderRadius.circular(14),
+                          border: following
+                              ? Border.all(color: FishdexTheme.primary, width: 1.5)
+                              : null,
+                        ),
+                        child: Center(child: Text(
+                          following ? 'Abonné ✓' : 'S\'abonner',
+                          style: TextStyle(
+                            color: following ? FishdexTheme.primary : Colors.white,
+                            fontWeight: FontWeight.w700, fontSize: 15),
+                        )),
                       ),
-                      child: Center(child: Text(
-                        following ? 'Abonné ✓' : 'S\'abonner',
-                        style: TextStyle(
-                          color: following ? FishdexTheme.primary : Colors.white,
-                          fontWeight: FontWeight.w700, fontSize: 15),
-                      )),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                )),
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: () async {
+                    final userData = await FirebaseFirestore.instance
+                        .collection('users').doc(userId).get();
+                    final data = userData.data() ?? {};
+                    final name   = data['displayName'] as String? ?? displayName;
+                    final handle = data['username']    as String? ?? userHandle;
+                    final convId = await MessagingService.ensureConversation(
+                      otherUid:    userId,
+                      otherName:   name,
+                      otherHandle: handle,
+                    );
+                    if (context.mounted) {
+                      Navigator.push(context, CupertinoPageRoute(
+                        builder: (_) => ConversationScreen(
+                          convId:      convId,
+                          otherUid:    userId,
+                          otherName:   name,
+                          otherHandle: handle,
+                        )));
+                    }
+                  },
+                  child: Container(
+                    width: 46, height: 46,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      color: FishdexTheme.primary.withOpacity(0.08),
+                      border: Border.all(
+                        color: FishdexTheme.primary.withOpacity(0.25))),
+                    child: const Icon(
+                      CupertinoIcons.chat_bubble_text_fill,
+                      color: FishdexTheme.primary, size: 18)),
+                ),
+              ]),
             ),
 
           const SizedBox(height: 20),

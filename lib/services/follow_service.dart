@@ -16,6 +16,15 @@ class FollowService {
         'targetId':   targetId,
         'createdAt':  FieldValue.serverTimestamp(),
       });
+      await _db.collection('notifications').doc(targetId).collection('items').add({
+        'type':         'follow',
+        'fromUserId':   uid,
+        'fromUserName': AuthService.currentUserName,
+        'catchId':      '',
+        'catchName':    '',
+        'timestamp':    FieldValue.serverTimestamp(),
+        'read':         false,
+      });
       return null;
     } catch (e) {
       return e.toString();
