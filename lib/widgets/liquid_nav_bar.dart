@@ -25,9 +25,9 @@ class _LiquidNavBarState extends State<LiquidNavBar>
 
   static const List<_NavItem> _items = [
     _NavItem(CupertinoIcons.house_fill, CupertinoIcons.house, 'Accueil'),
-    _NavItem(CupertinoIcons.cart_fill, CupertinoIcons.cart, 'Marché'),
-    _NavItem(CupertinoIcons.camera_fill, CupertinoIcons.camera, 'Scanner'),
     _NavItem(CupertinoIcons.tray_full_fill, CupertinoIcons.tray_full, 'Collection'),
+    _NavItem(CupertinoIcons.camera_fill, CupertinoIcons.camera, 'Scanner'),
+    _NavItem(CupertinoIcons.chat_bubble_text_fill, CupertinoIcons.chat_bubble_text, 'Messages'),
     _NavItem(CupertinoIcons.person_fill, CupertinoIcons.person, 'Profil'),
   ];
 
@@ -115,7 +115,7 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                               ? _selectAnim
                               : const AlwaysStoppedAnimation(0),
                           isCamera: i == 2,
-                          badgeCount: i == 4 ? unread : 0,
+                          badgeCount: i == 3 ? unread : 0,
                         ),
                       ),
                     );

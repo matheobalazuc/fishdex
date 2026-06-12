@@ -5,9 +5,9 @@ import 'firebase_options.dart';
 import 'theme/fishdex_theme.dart';
 import 'widgets/liquid_nav_bar.dart';
 import 'screens/home_screen.dart';
-import 'screens/marketplace_screen.dart';
-import 'screens/camera_screen.dart';
 import 'screens/collection_screen.dart';
+import 'screens/camera_screen.dart';
+import 'screens/messages_screen.dart';
 import 'screens/profile_screen.dart';
 
 Future<void> main() async {
@@ -50,9 +50,9 @@ class _FishdexShellState extends State<FishdexShell>
 
   final _screens = const [
     HomeScreen(),
-    MarketplaceScreen(),
-    CameraScreen(),
     CollectionScreen(),
+    CameraScreen(),
+    MessagesScreen(),
     ProfileScreen(),
   ];
 

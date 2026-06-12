@@ -21,6 +21,7 @@ import 'catch_detail_screen.dart';
 import 'conversation_screen.dart';
 import 'fishing_calendar_screen.dart';
 import 'fishing_map_screen.dart';
+import 'marketplace_screen.dart';
 import 'user_profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -214,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ]),
         ),
       )),
-      const SizedBox(width: 10),
+      const SizedBox(width: 8),
       Expanded(child: GestureDetector(
         onTap: () => Navigator.push(context,
             CupertinoPageRoute(builder: (_) => const FishingMapScreen())),
@@ -230,6 +231,25 @@ class _HomeScreenState extends State<HomeScreen> {
             Text('🗺️', style: TextStyle(fontSize: 16)),
             SizedBox(width: 6),
             Text('Carte pêche', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      )),
+      const SizedBox(width: 8),
+      Expanded(child: GestureDetector(
+        onTap: () => Navigator.push(context,
+            CupertinoPageRoute(builder: (_) => const MarketplaceScreen())),
+        child: Container(
+          height: 44,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFB347), Color(0xFFFF6F00)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [BoxShadow(color: const Color(0xFFFF6F00).withOpacity(0.22), blurRadius: 8, offset: const Offset(0, 3))]),
+          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text('🛒', style: TextStyle(fontSize: 16)),
+            SizedBox(width: 6),
+            Text('Marché', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
           ]),
         ),
       )),

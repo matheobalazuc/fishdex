@@ -8,11 +8,9 @@ import '../services/auth_service.dart';
 import '../services/catch_service.dart';
 import '../services/follow_service.dart';
 import '../services/hotspot_service.dart';
-import '../services/messaging_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 import 'catch_detail_screen.dart';
-import 'messages_screen.dart';
 
 const _kVersion   = '1.0.0';
 const _kBuildDate = '11/06/2026';
@@ -225,54 +223,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _divider(),
           _followStat('$speciesCount', 'Espèces'),
         ]),
-        const SizedBox(height: 16),
-
-        // ── Messagerie ───────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: StreamBuilder<int>(
-            stream: MessagingService.totalUnreadStream(),
-            builder: (context, snap) {
-              final unread = snap.data ?? 0;
-              return GestureDetector(
-                onTap: () => Navigator.push(context,
-                    CupertinoPageRoute(builder: (_) => const MessagesScreen())),
-                child: Container(
-                  height: 44,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: FishdexTheme.primary.withOpacity(0.07),
-                    border: Border.all(
-                      color: FishdexTheme.primary.withOpacity(0.20))),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const Icon(CupertinoIcons.chat_bubble_text_fill,
-                      color: FishdexTheme.primary, size: 18),
-                    const SizedBox(width: 8),
-                    const Text('Messagerie',
-                      style: TextStyle(
-                        color: FishdexTheme.primary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600)),
-                    if (unread > 0) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: FishdexTheme.primary,
-                          borderRadius: BorderRadius.circular(10)),
-                        child: Text('$unread',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800))),
-                    ],
-                  ]),
-                ),
-              );
-            },
-          ),
-        ),
         const SizedBox(height: 20),
       ]),
     );

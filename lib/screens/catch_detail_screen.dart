@@ -371,7 +371,7 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
       const SizedBox(height: 10),
       Wrap(spacing: 8, children: [
         _pill(_c.family, FishdexTheme.primary),
-        _pill('${(_c.confidence * 100).toStringAsFixed(1)}%', FishdexTheme.mint),
+        if (!_c.isManualEntry) _pill('${(_c.confidence * 100).toStringAsFixed(1)}%', FishdexTheme.mint),
         if (_c.isPublished) _pill(_c.isPrivate ? '🔒 Privé' : '🌍 Public', FishdexTheme.golden),
       ]),
 
@@ -396,11 +396,13 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
         _buildWikiCard(),
       ],
 
-      // Confiance + Top 5
-      const SizedBox(height: 20),
-      _buildConfidence(),
-      const SizedBox(height: 16),
-      _buildTop5(),
+      // Confiance + Top 5 (IA only)
+      if (!_c.isManualEntry) ...[
+        const SizedBox(height: 20),
+        _buildConfidence(),
+        const SizedBox(height: 16),
+        _buildTop5(),
+      ],
 
       if (_isOwner) ...[
         const SizedBox(height: 28),
