@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +12,20 @@ import '../models/catch_model.dart';
 import '../services/auth_service.dart';
 import '../services/catch_service.dart';
 import '../theme/fishdex_theme.dart';
+
+// ─── Decimal parse + formatter (accepte virgule) ─────────────────────
+double? _parseDecimal(String text) =>
+    double.tryParse(text.trim().replaceAll(',', '.'));
+
+class _DetailDecimalFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue old, TextEditingValue nw) {
+    final text = nw.text.replaceAll(',', '.');
+    if (text == nw.text) return nw;
+    return nw.copyWith(text: text,
+      selection: TextSelection.collapsed(offset: text.length));
+  }
+}
 
 // ─── Labels helpers ───────────────────────────────────────────────
 String _weatherLabel(String? key) => const {
@@ -66,6 +81,7 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
   String? _editSeaState;
   double? _editLat;
   double? _editLng;
+  double  _editRadius  = 0;
 
   Uint8List? _newImageBytes;
 
@@ -99,6 +115,7 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
     _editSeaState     = _c.seaState;
     _editLat          = _c.lat;
     _editLng          = _c.lng;
+    _editRadius       = _c.locationRadius ?? 0;
     _showMapPicker    = false;
   }
 
@@ -181,20 +198,21 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
       frenchName:  _frenchCtrl.text.trim(),
       species:     _speciesCtrl.text.trim(),
       family:      _familyCtrl.text.trim(),
-      sizecm:      double.tryParse(_sizeCtrl.text),
-      weightkg:    double.tryParse(_weightCtrl.text),
-      location:    _locCtrl.text.trim().isEmpty  ? null : _locCtrl.text.trim(),
-      notes:       _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      imageBase64: newImage,
-      weather:     _editWeather,
-      seaState:    _editSeaState,
-      windSpeed:   double.tryParse(_windCtrl.text),
-      lat:         _editLat,
-      lng:         _editLng,
-      clearSize:   _sizeCtrl.text.trim().isEmpty,
-      clearWeight: _weightCtrl.text.trim().isEmpty,
-      clearLocation: _locCtrl.text.trim().isEmpty,
-      clearNotes:  _notesCtrl.text.trim().isEmpty,
+      sizecm:         _parseDecimal(_sizeCtrl.text),
+      weightkg:       _parseDecimal(_weightCtrl.text),
+      location:       _locCtrl.text.trim().isEmpty  ? null : _locCtrl.text.trim(),
+      notes:          _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      imageBase64:    newImage,
+      weather:        _editWeather,
+      seaState:       _editSeaState,
+      windSpeed:      _parseDecimal(_windCtrl.text),
+      lat:            _editLat,
+      lng:            _editLng,
+      locationRadius: _editRadius > 0 ? _editRadius : null,
+      clearSize:      _sizeCtrl.text.trim().isEmpty,
+      clearWeight:    _weightCtrl.text.trim().isEmpty,
+      clearLocation:  _locCtrl.text.trim().isEmpty,
+      clearNotes:     _notesCtrl.text.trim().isEmpty,
     );
     await CatchService.replace(updated);
     if (!mounted) return;
@@ -216,10 +234,13 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
   Future<void> _togglePublish() async {
     if (_c.id == null) return;
     if (!_c.isPublished) {
-      final mode = await _showPublishSheet(context);
-      if (mode == null) return;
-      await CatchService.update(_c.id!, {'isPublished': true, 'isPrivate': mode == 1});
-      setState(() => _c = _c.copyWith(isPublished: true, isPrivate: mode == 1));
+      final ok = await _showModernConfirm(context,
+        emoji: '📢', title: 'Publier dans le fil ?',
+        subtitle: 'Visible de tous les membres Fishdex.',
+        confirmLabel: 'Publier', confirmColor: FishdexTheme.primary);
+      if (!ok) return;
+      await CatchService.update(_c.id!, {'isPublished': true, 'isPrivate': false});
+      setState(() => _c = _c.copyWith(isPublished: true, isPrivate: false));
     } else {
       final ok = await _showModernConfirm(context,
         emoji: '👁️', title: 'Retirer du fil ?',
@@ -230,37 +251,6 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
       setState(() => _c = _c.copyWith(isPublished: false));
     }
   }
-
-  Future<int?> _showPublishSheet(BuildContext ctx) =>
-      showModalBottomSheet<int>(
-        context: ctx, backgroundColor: Colors.transparent,
-        builder: (_) => Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.all(Radius.circular(28))),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(2))),
-            const Text('📢', style: TextStyle(fontSize: 44)),
-            const SizedBox(height: 14),
-            const Text('Publier dans le fil', style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            const Text('Qui peut voir cette prise ?', textAlign: TextAlign.center,
-              style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
-            const SizedBox(height: 24),
-            GestureDetector(onTap: () => Navigator.pop(ctx, 0),
-              child: Container(width: double.infinity, height: 52, margin: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(color: FishdexTheme.primary, borderRadius: BorderRadius.circular(16)),
-                child: const Center(child: Text('🌍  Public — Tout le monde',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15))))),
-            GestureDetector(onTap: () => Navigator.pop(ctx, 1),
-              child: Container(width: double.infinity, height: 52,
-                decoration: BoxDecoration(color: FishdexTheme.golden, borderRadius: BorderRadius.circular(16)),
-                child: const Center(child: Text('🔒  Privé — Amis uniquement',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15))))),
-          ]),
-        ),
-      );
 
   // ── Build ─────────────────────────────────────────────────────────
   @override
@@ -465,6 +455,16 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.fishdex.app'),
+              if (_c.locationRadius != null && _c.locationRadius! > 0)
+                CircleLayer(circles: [
+                  CircleMarker(
+                    point: LatLng(_c.lat!, _c.lng!),
+                    radius: _c.locationRadius! * 1000,
+                    useRadiusInMeter: true,
+                    color: FishdexTheme.primary.withOpacity(0.10),
+                    borderColor: FishdexTheme.primary.withOpacity(0.45),
+                    borderStrokeWidth: 2),
+                ]),
               MarkerLayer(markers: [
                 Marker(
                   point: LatLng(_c.lat!, _c.lng!),
@@ -474,6 +474,11 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
           ),
         ),
       ),
+      if (_c.locationRadius != null && _c.locationRadius! > 0)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text('Périmètre affiché : ${_c.locationRadius!.toStringAsFixed(0)} km',
+            style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 10))),
     ]),
   );
 
@@ -585,10 +590,10 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
       _sectionLabel('Ma prise (facultatif)'),
       Row(children: [
         Expanded(child: _field('Taille (cm)', _sizeCtrl, '42',
-            type: const TextInputType.numberWithOptions(decimal: true))),
+            type: const TextInputType.numberWithOptions(decimal: true), decimal: true)),
         const SizedBox(width: 12),
         Expanded(child: _field('Poids (kg)', _weightCtrl, '1.8',
-            type: const TextInputType.numberWithOptions(decimal: true))),
+            type: const TextInputType.numberWithOptions(decimal: true), decimal: true)),
       ]),
       const SizedBox(height: 10),
       _field('Notes', _notesCtrl, 'Belle prise sur leurre…', maxLines: 3),
@@ -685,7 +690,7 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
 
       Row(children: [
         Expanded(child: _field('Vent (km/h)', _windCtrl, '15',
-            type: const TextInputType.numberWithOptions(decimal: true))),
+            type: const TextInputType.numberWithOptions(decimal: true), decimal: true)),
         const Expanded(child: SizedBox()),
       ]),
       const SizedBox(height: 24),
@@ -726,7 +731,17 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.fishdex.app'),
-              if (hasPin)
+              if (hasPin) ...[
+                if (_editRadius > 0)
+                  CircleLayer(circles: [
+                    CircleMarker(
+                      point: LatLng(_editLat!, _editLng!),
+                      radius: _editRadius * 1000,
+                      useRadiusInMeter: true,
+                      color: FishdexTheme.primary.withOpacity(0.10),
+                      borderColor: FishdexTheme.primary.withOpacity(0.45),
+                      borderStrokeWidth: 2),
+                  ]),
                 MarkerLayer(markers: [
                   Marker(
                     point: LatLng(_editLat!, _editLng!),
@@ -738,15 +753,32 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
                           decoration: const BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary))),
                     ])),
                 ]),
+              ],
             ],
           ),
         ),
       ),
-      if (hasPin)
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text('${_editLat!.toStringAsFixed(5)}, ${_editLng!.toStringAsFixed(5)}',
-            style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 10))),
+      if (hasPin) ...[
+        const SizedBox(height: 10),
+        Row(children: [
+          const Icon(CupertinoIcons.circle, color: FishdexTheme.primary, size: 14),
+          const SizedBox(width: 6),
+          Text('Périmètre : ${_editRadius == 0 ? "Position exacte" : "${_editRadius.toStringAsFixed(0)} km"}',
+            style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
+        ]),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: FishdexTheme.primary,
+            thumbColor: FishdexTheme.primary,
+            inactiveTrackColor: FishdexTheme.primary.withOpacity(0.15),
+            trackHeight: 3,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8)),
+          child: Slider(
+            value: _editRadius, min: 0, max: 20, divisions: 20,
+            onChanged: (v) => setState(() => _editRadius = v))),
+        const Text('0 = position exacte · glisse pour masquer l\'endroit précis',
+          style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 10)),
+      ],
     ]);
   }
 
@@ -761,7 +793,7 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
     style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500));
 
   Widget _field(String label, TextEditingController ctrl, String hint,
-      {TextInputType type = TextInputType.text, int maxLines = 1, bool italic = false}) {
+      {TextInputType type = TextInputType.text, int maxLines = 1, bool italic = false, bool decimal = false}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
       const SizedBox(height: 4),
@@ -772,6 +804,7 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
           border: Border.all(color: Colors.black.withOpacity(0.07))),
         child: TextField(
           controller: ctrl, keyboardType: type, maxLines: maxLines,
+          inputFormatters: decimal ? [_DetailDecimalFormatter()] : null,
           style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 14,
               fontStyle: italic ? FontStyle.italic : FontStyle.normal),
           decoration: InputDecoration(

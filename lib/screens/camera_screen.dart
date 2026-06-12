@@ -1,13 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/catch_model.dart';
 import '../services/auth_service.dart';
 import '../services/catch_service.dart';
@@ -53,6 +55,21 @@ String _emoji(String family) {
   }
 }
 
+// ── Comma-safe decimal formatter ─────────────────────────────────────
+double? _parseDecimal(String text) =>
+    double.tryParse(text.trim().replaceAll(',', '.'));
+
+class _DecimalInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue old, TextEditingValue nw) {
+    final text = nw.text.replaceAll(',', '.');
+    if (text == nw.text) return nw;
+    return nw.copyWith(text: text,
+      selection: TextSelection.collapsed(offset: text.length));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
 class _Result {
   final String family;
   final double confidence;
@@ -71,15 +88,14 @@ class _Result {
   double get topScore   => top5.isNotEmpty ? top5.first.score   : 0;
 }
 
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
   @override
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen>
-    with TickerProviderStateMixin {
+class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMixin {
   late AnimationController _scanController;
   late AnimationController _pulseController;
 
@@ -87,20 +103,18 @@ class _CameraScreenState extends State<CameraScreen>
   bool _isSaving   = false;
   bool _saved      = false;
   bool _showDetail = false;
-  bool _aiEnabled  = true;   // toggle IA
+  bool _aiEnabled  = true;
   String? _error;
   _Result? _result;
   String?  _fishImageUrl;
-
   XFile?    _pickedFile;
   Uint8List? _imageBytes;
-
   final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    _scanController = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
+    _scanController  = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
     _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
   }
 
@@ -116,17 +130,11 @@ class _CameraScreenState extends State<CameraScreen>
     if (file == null || !mounted) return;
     final bytes = await file.readAsBytes();
     setState(() {
-      _pickedFile = file;
-      _imageBytes = bytes;
-      _result     = null;
-      _error      = null;
-      _fishImageUrl = null;
-      _saved      = false;
-      _showDetail = false;
+      _pickedFile = file; _imageBytes = bytes;
+      _result = null; _error = null; _fishImageUrl = null;
+      _saved = false; _showDetail = false;
     });
-    if (_aiEnabled) {
-      await _identify(file, bytes);
-    }
+    if (_aiEnabled) await _identify(file, bytes);
   }
 
   Future<void> _identify(XFile file, Uint8List bytes) async {
@@ -156,22 +164,14 @@ class _CameraScreenState extends State<CameraScreen>
     if (!AuthService.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('🔒 Connecte-toi dans Profil pour sauvegarder'),
-        backgroundColor: Color(0xFFFF6B6B),
-        duration: Duration(seconds: 3),
-      ));
+        backgroundColor: Color(0xFFFF6B6B), duration: Duration(seconds: 3)));
       return;
     }
     showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (_) => _SaveSheet(
-        result: _result,
-        imageBytes: _imageBytes,
-        fishImageUrl: _fishImageUrl,
-        onSaved: () { if (mounted) setState(() => _saved = true); },
-      ),
-    );
+        result: _result, imageBytes: _imageBytes, fishImageUrl: _fishImageUrl,
+        onSaved: () { if (mounted) setState(() => _saved = true); }));
   }
 
   void _reset() => setState(() {
@@ -187,140 +187,117 @@ class _CameraScreenState extends State<CameraScreen>
   );
 
   // ── Vue initiale ──────────────────────────────────────────────────
-  Widget _buildPickerView() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-        child: Column(children: [
-          // Toggle IA
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: GlassCard(child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(children: [
-                Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: (_aiEnabled ? FishdexTheme.primary : FishdexTheme.textTertiary).withOpacity(0.10)),
-                  child: Center(child: Text(_aiEnabled ? '🤖' : '✏️',
-                    style: const TextStyle(fontSize: 18))),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Reconnaissance IA',
-                    style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-                  Text(_aiEnabled ? 'L\'IA identifie le poisson automatiquement' : 'Saisie manuelle — remplis toi-même',
-                    style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 11)),
-                ])),
-                CupertinoSwitch(
-                  value: _aiEnabled,
-                  activeColor: FishdexTheme.primary,
-                  onChanged: (v) => setState(() => _aiEnabled = v),
-                ),
-              ]),
-            )),
-          ),
-
-          const Spacer(),
-          Container(
-            width: 130, height: 130,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: FishdexTheme.primary.withOpacity(0.07)),
-            child: Center(child: Text(_aiEnabled ? '🐟' : '✏️',
-              style: const TextStyle(fontSize: 68))),
-          ),
-          const SizedBox(height: 20),
-          Text(_aiEnabled ? 'Identifier un poisson' : 'Saisie manuelle',
-            style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
-          const SizedBox(height: 6),
-          Text(_aiEnabled ? 'Reconnaissance IA · photo ou galerie' : 'Prends une photo puis remplis la fiche',
-            style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
-          const Spacer(),
-
-          AnimatedBuilder(
-            animation: _pulseController,
-            builder: (_, __) => GestureDetector(
-              onTap: () => _pick(ImageSource.camera),
-              child: Container(
-                width: double.infinity, height: 64,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: const LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00B4D8)]),
-                  boxShadow: [BoxShadow(
-                    color: FishdexTheme.primary.withOpacity(0.28 + _pulseController.value * 0.14),
-                    blurRadius: 18 + _pulseController.value * 6,
-                    offset: const Offset(0, 6))],
-                ),
-                child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(CupertinoIcons.camera_fill, color: Colors.white, size: 22),
-                  SizedBox(width: 10),
-                  Text('Prendre une photo', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
-                ]),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          GestureDetector(
-            onTap: () => _pick(ImageSource.gallery),
-            child: Container(
-              width: double.infinity, height: 56,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                color: FishdexTheme.primary.withOpacity(0.07),
-                border: Border.all(color: FishdexTheme.primary.withOpacity(0.18))),
-              child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(CupertinoIcons.photo_on_rectangle, color: FishdexTheme.primary, size: 20),
-                SizedBox(width: 10),
-                Text('Importer depuis la galerie', style: TextStyle(color: FishdexTheme.primary, fontSize: 16, fontWeight: FontWeight.w600)),
-              ]),
-            ),
-          ),
-          const SizedBox(height: 120),
-        ]),
-      ),
-    );
-  }
-
-  // ── Vue analyse / résultat ────────────────────────────────────────
-  Widget _buildAnalysisView() {
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(child: Stack(children: [
-          SizedBox(height: 300, width: double.infinity, child: _buildPreviewImage()),
-          SafeArea(child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              GestureDetector(
-                onTap: _reset,
-                child: GlassCard(blur: 20, radius: 14, child: const Padding(
-                  padding: EdgeInsets.all(9),
-                  child: Icon(CupertinoIcons.xmark, color: FishdexTheme.textPrimary, size: 16)))),
+  Widget _buildPickerView() => SafeArea(
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: GlassCard(child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(children: [
+              Container(width: 36, height: 36,
+                decoration: BoxDecoration(shape: BoxShape.circle,
+                  color: (_aiEnabled ? FishdexTheme.primary : FishdexTheme.textTertiary).withOpacity(0.10)),
+                child: Center(child: Text(_aiEnabled ? '🤖' : '✏️', style: const TextStyle(fontSize: 18)))),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Reconnaissance IA',
+                  style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                Text(_aiEnabled ? 'L\'IA propose une liste, tu choisis' : 'Saisie manuelle — remplis toi-même',
+                  style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 11)),
+              ])),
+              CupertinoSwitch(value: _aiEnabled, activeColor: FishdexTheme.primary,
+                onChanged: (v) => setState(() => _aiEnabled = v)),
             ]),
           )),
-          if (_isScanning)
-            Positioned.fill(child: AnimatedBuilder(
-              animation: _scanController,
-              builder: (_, __) => CustomPaint(painter: _ScanPainter(_scanController.value)))),
-        ])),
+        ),
+        const Spacer(),
+        Container(width: 130, height: 130,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: FishdexTheme.primary.withOpacity(0.07)),
+          child: Center(child: Text(_aiEnabled ? '🐟' : '✏️', style: const TextStyle(fontSize: 68)))),
+        const SizedBox(height: 20),
+        Text(_aiEnabled ? 'Identifier un poisson' : 'Saisie manuelle',
+          style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+        const SizedBox(height: 6),
+        Text(_aiEnabled ? 'L\'IA reconnaît le poisson · tu valides le choix' : 'Prends une photo puis remplis la fiche',
+          style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+        const Spacer(),
+        AnimatedBuilder(
+          animation: _pulseController,
+          builder: (_, __) => GestureDetector(
+            onTap: () => _pick(ImageSource.camera),
+            child: Container(
+              width: double.infinity, height: 64,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: const LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00B4D8)]),
+                boxShadow: [BoxShadow(
+                  color: FishdexTheme.primary.withOpacity(0.28 + _pulseController.value * 0.14),
+                  blurRadius: 18 + _pulseController.value * 6, offset: const Offset(0, 6))]),
+              child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(CupertinoIcons.camera_fill, color: Colors.white, size: 22),
+                SizedBox(width: 10),
+                Text('Prendre une photo', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () => _pick(ImageSource.gallery),
+          child: Container(
+            width: double.infinity, height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              color: FishdexTheme.primary.withOpacity(0.07),
+              border: Border.all(color: FishdexTheme.primary.withOpacity(0.18))),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(CupertinoIcons.photo_on_rectangle, color: FishdexTheme.primary, size: 20),
+              SizedBox(width: 10),
+              Text('Importer depuis la galerie', style: TextStyle(color: FishdexTheme.primary, fontSize: 16, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 120),
+      ]),
+    ),
+  );
 
-        SliverToBoxAdapter(child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: _isScanning
-              ? _buildLoadingCard()
-              : _error != null
-                  ? _buildErrorCard()
-                  : (_result != null || !_aiEnabled)
-                      ? _buildResultCard()
-                      : const SizedBox.shrink(),
+  // ── Vue analyse / résultat ────────────────────────────────────────
+  Widget _buildAnalysisView() => CustomScrollView(
+    physics: const BouncingScrollPhysics(),
+    slivers: [
+      SliverToBoxAdapter(child: Stack(children: [
+        SizedBox(height: 300, width: double.infinity, child: _buildPreviewImage()),
+        SafeArea(child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            GestureDetector(
+              onTap: _reset,
+              child: GlassCard(blur: 20, radius: 14, child: const Padding(
+                padding: EdgeInsets.all(9),
+                child: Icon(CupertinoIcons.xmark, color: FishdexTheme.textPrimary, size: 16)))),
+          ]),
         )),
-
-        const SliverToBoxAdapter(child: SizedBox(height: 140)),
-      ],
-    );
-  }
+        if (_isScanning)
+          Positioned.fill(child: AnimatedBuilder(
+            animation: _scanController,
+            builder: (_, __) => CustomPaint(painter: _ScanPainter(_scanController.value)))),
+      ])),
+      SliverToBoxAdapter(child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: _isScanning
+            ? _buildLoadingCard()
+            : _error != null
+                ? _buildErrorCard()
+                : (_result != null || !_aiEnabled)
+                    ? _buildResultCard()
+                    : const SizedBox.shrink(),
+      )),
+      const SliverToBoxAdapter(child: SizedBox(height: 140)),
+    ],
+  );
 
   Widget _buildPreviewImage() {
     if (_imageBytes != null) return Image.memory(_imageBytes!, fit: BoxFit.cover);
@@ -352,13 +329,10 @@ class _CameraScreenState extends State<CameraScreen>
       const SizedBox(height: 14),
       GestureDetector(
         onTap: _pickedFile != null && _imageBytes != null
-            ? () => _identify(_pickedFile!, _imageBytes!)
-            : _reset,
+            ? () => _identify(_pickedFile!, _imageBytes!) : _reset,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-          decoration: BoxDecoration(
-            color: FishdexTheme.primary.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: FishdexTheme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
           child: Text('Réessayer', style: TextStyle(color: FishdexTheme.primary, fontWeight: FontWeight.w600)))),
     ]),
   ));
@@ -376,83 +350,80 @@ class _CameraScreenState extends State<CameraScreen>
               const SizedBox(width: 8),
               _badge(r.family, CupertinoIcons.drop_fill, FishdexTheme.primary),
             ]),
-            const SizedBox(height: 14),
-            Row(children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: _fishImageUrl != null
-                    ? Image.network(_fishImageUrl!, width: 72, height: 72, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _emojiBox(r.family))
-                    : _emojiBox(r.family)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_fr(r.topSpecies),
-                  style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.4)),
-                Text(r.topSpecies,
-                  style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
-                const SizedBox(height: 6),
-                _ScoreBar(score: r.topScore),
-              ])),
-            ]),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
+            // Top5 selection list
+            const Text('Choisis le poisson reconnu',
+              style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            ...r.top5.asMap().entries.map((e) {
+              final i  = e.key;
+              final sp = e.value;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    // pre-select will be handled in save sheet, just open it
+                  }),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: i == 0 ? FishdexTheme.primary.withOpacity(0.07) : Colors.black.withOpacity(0.02),
+                      border: Border.all(
+                        color: i == 0 ? FishdexTheme.primary.withOpacity(0.3) : Colors.black.withOpacity(0.06),
+                        width: i == 0 ? 1.5 : 1)),
+                    child: Row(children: [
+                      Container(width: 26, height: 26,
+                        decoration: BoxDecoration(shape: BoxShape.circle,
+                          color: i == 0 ? FishdexTheme.primary.withOpacity(0.12) : Colors.black.withOpacity(0.04)),
+                        child: Center(child: Text('${i + 1}',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                            color: i == 0 ? FishdexTheme.primary : FishdexTheme.textTertiary)))),
+                      const SizedBox(width: 10),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(_fr(sp.species), style: TextStyle(
+                          color: i == 0 ? FishdexTheme.textPrimary : FishdexTheme.textSecondary,
+                          fontSize: 13, fontWeight: i == 0 ? FontWeight.w600 : FontWeight.w400)),
+                        Text(sp.species, style: const TextStyle(
+                          color: FishdexTheme.textTertiary, fontSize: 10, fontStyle: FontStyle.italic)),
+                      ])),
+                      Text('${(sp.score * 100).toStringAsFixed(0)}%',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                          color: i == 0 ? FishdexTheme.primary : FishdexTheme.textTertiary)),
+                    ]),
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 6),
             GestureDetector(
               onTap: () => setState(() => _showDetail = !_showDetail),
               child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.03),
-                  borderRadius: BorderRadius.circular(12),
+                width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(color: Colors.black.withOpacity(0.03), borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.black.withOpacity(0.06))),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('Détail de l\'analyse',
-                    style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+                  const Icon(CupertinoIcons.photo_fill_on_rectangle_fill, size: 12, color: FishdexTheme.textTertiary),
+                  const SizedBox(width: 5),
+                  Text('Voir la photo Wikipedia', style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
                   const SizedBox(width: 6),
-                  AnimatedRotation(
-                    turns: _showDetail ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(CupertinoIcons.chevron_down, size: 13, color: FishdexTheme.textTertiary)),
+                  AnimatedRotation(turns: _showDetail ? 0.5 : 0, duration: const Duration(milliseconds: 200),
+                    child: const Icon(CupertinoIcons.chevron_down, size: 11, color: FishdexTheme.textTertiary)),
                 ]),
               ),
             ),
             AnimatedSize(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              child: _showDetail
+              duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic,
+              child: _showDetail && _fishImageUrl != null
                   ? Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Column(children: r.top5.asMap().entries.map((e) {
-                        final i = e.key; final sp = e.value; final isTop = i == 0;
-                        return Padding(padding: const EdgeInsets.only(bottom: 10),
-                          child: Row(children: [
-                            Container(width: 26, height: 26,
-                              decoration: BoxDecoration(shape: BoxShape.circle,
-                                color: isTop ? FishdexTheme.primary.withOpacity(0.12) : Colors.black.withOpacity(0.04)),
-                              child: Center(child: Text('${i+1}',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                                  color: isTop ? FishdexTheme.primary : FishdexTheme.textTertiary)))),
-                            const SizedBox(width: 10),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(_fr(sp.species),
-                                style: TextStyle(fontSize: 13,
-                                  fontWeight: isTop ? FontWeight.w600 : FontWeight.w400,
-                                  color: isTop ? FishdexTheme.textPrimary : FishdexTheme.textSecondary)),
-                              Text(sp.species,
-                                style: const TextStyle(fontSize: 11, color: FishdexTheme.textTertiary, fontStyle: FontStyle.italic)),
-                            ])),
-                            Text('${(sp.score * 100).toStringAsFixed(1)}%',
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                color: isTop ? FishdexTheme.primary : FishdexTheme.textTertiary)),
-                          ]));
-                      }).toList()),
-                    )
-                  : const SizedBox.shrink(),
-            ),
+                      padding: const EdgeInsets.only(top: 10),
+                      child: ClipRRect(borderRadius: BorderRadius.circular(12),
+                        child: Image.network(_fishImageUrl!, height: 120, width: double.infinity, fit: BoxFit.cover)))
+                  : const SizedBox.shrink()),
           ]),
         )),
         const SizedBox(height: 12),
       ] else ...[
-        // Mode manuel sans IA — indication
         GlassCard(child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(children: [
@@ -471,7 +442,6 @@ class _CameraScreenState extends State<CameraScreen>
         )),
         const SizedBox(height: 12),
       ],
-
       GestureDetector(
         onTap: _saved ? null : _openSaveSheet,
         child: AnimatedContainer(
@@ -484,8 +454,7 @@ class _CameraScreenState extends State<CameraScreen>
                 : const LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00B4D8)]),
             boxShadow: [BoxShadow(
               color: (_saved ? FishdexTheme.mint : FishdexTheme.primary).withOpacity(0.25),
-              blurRadius: 14, offset: const Offset(0, 5))],
-          ),
+              blurRadius: 14, offset: const Offset(0, 5))]),
           child: Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(_saved ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.tray_arrow_down,
               color: Colors.white, size: 18),
@@ -500,9 +469,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   Widget _badge(String label, IconData icon, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.10),
-      borderRadius: BorderRadius.circular(12),
+    decoration: BoxDecoration(color: color.withOpacity(0.10), borderRadius: BorderRadius.circular(12),
       border: Border.all(color: color.withOpacity(0.22))),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, color: color, size: 13),
@@ -510,37 +477,23 @@ class _CameraScreenState extends State<CameraScreen>
       Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
     ]),
   );
-
-  Widget _emojiBox(String family) => Container(
-    width: 72, height: 72,
-    decoration: BoxDecoration(borderRadius: BorderRadius.circular(14),
-      color: FishdexTheme.primary.withOpacity(0.07)),
-    child: Center(child: Text(_emoji(family), style: const TextStyle(fontSize: 38))));
 }
 
-// ── Score bar ────────────────────────────────────────────────────────
+// ── Score bar ─────────────────────────────────────────────────────────
 class _ScoreBar extends StatelessWidget {
   final double score;
   const _ScoreBar({required this.score});
-
   @override
   Widget build(BuildContext context) {
     final color = score > 0.7 ? FishdexTheme.mint : score > 0.5 ? FishdexTheme.golden : FishdexTheme.coral;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: LinearProgressIndicator(
-          value: score, minHeight: 5,
-          backgroundColor: color.withOpacity(0.12),
-          valueColor: AlwaysStoppedAnimation<Color>(color))),
-      const SizedBox(height: 3),
-      Text('${(score * 100).toStringAsFixed(0)}% correspondance',
-        style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 10)),
-    ]);
+    return ClipRRect(borderRadius: BorderRadius.circular(4),
+      child: LinearProgressIndicator(value: score, minHeight: 5,
+        backgroundColor: color.withOpacity(0.12),
+        valueColor: AlwaysStoppedAnimation<Color>(color)));
   }
 }
 
-// ── Météo ────────────────────────────────────────────────────────────
+// ── Météo ─────────────────────────────────────────────────────────────
 const _weatherOptions = [
   (key: 'sunny',  emoji: '☀️', label: 'Ensoleillé'),
   (key: 'cloudy', emoji: '⛅', label: 'Nuageux'),
@@ -556,12 +509,9 @@ const _seaOptions = [
   (key: 'storm',  emoji: '🔴', label: 'Forte'),
 ];
 
-String _weatherEmoji(String? key) =>
-    _weatherOptions.where((e) => e.key == key).map((e) => e.emoji).firstOrNull ?? '';
-
-// ── Feuille de sauvegarde ────────────────────────────────────────────
+// ── Feuille de sauvegarde ─────────────────────────────────────────────
 class _SaveSheet extends StatefulWidget {
-  final _Result?    result;      // null = saisie manuelle
+  final _Result?    result;
   final Uint8List?  imageBytes;
   final String?     fishImageUrl;
   final VoidCallback onSaved;
@@ -578,26 +528,40 @@ class _SaveSheet extends StatefulWidget {
 }
 
 class _SaveSheetState extends State<_SaveSheet> {
-  // Champs communs
+  // ── Selected species (AI mode) ────────────────────────────────────
+  late String _selectedSpecies;
+
+  // ── Common fields ─────────────────────────────────────────────────
   final _sizeCtrl   = TextEditingController();
   final _weightCtrl = TextEditingController();
   final _locCtrl    = TextEditingController();
   final _notesCtrl  = TextEditingController();
   final _windCtrl   = TextEditingController();
-  // Champs manuels (quand result == null)
+  // ── Manual fields ─────────────────────────────────────────────────
   final _nameCtrl   = TextEditingController();
   final _latinCtrl  = TextEditingController();
   final _familyCtrl = TextEditingController();
 
-  int     _publishMode = 0;
+  // ── State ──────────────────────────────────────────────────────────
+  int     _publishMode     = 0;   // 0=Privé, 1=Public
   String? _weather;
   String? _seaState;
   double? _lat;
   double? _lng;
-  bool    _locating = false;
-  bool    _saving   = false;
+  double  _locationRadius  = 0;   // km
+  bool    _locating        = false;
+  bool    _showMapPicker   = false;
+  bool    _saving          = false;
+
+  final _mapController = MapController();
 
   bool get _isManual => widget.result == null;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedSpecies = widget.result?.topSpecies ?? '';
+  }
 
   @override
   void dispose() {
@@ -608,111 +572,103 @@ class _SaveSheetState extends State<_SaveSheet> {
     super.dispose();
   }
 
-  Future<void> _detectLocation() async {
+  // ── Location ───────────────────────────────────────────────────────
+  Future<void> _detectGPS() async {
     setState(() => _locating = true);
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (mounted) _showLocError('Service de localisation désactivé');
-        return;
-      }
+      bool ok = await Geolocator.isLocationServiceEnabled();
+      if (!ok) { _snack('Service de localisation désactivé'); return; }
       LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
+      if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
       if (perm == LocationPermission.deniedForever || perm == LocationPermission.denied) {
-        if (mounted) _showLocError('Accès à la position refusé');
-        return;
+        _snack('Accès à la position refusé'); return;
       }
       final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.medium,
-          timeLimit: const Duration(seconds: 10));
-      // Reverse geocode via Nominatim
+          desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 10));
+      await _reverseGeocode(pos.latitude, pos.longitude);
+    } catch (_) { _snack('Impossible de localiser'); }
+    finally { if (mounted) setState(() => _locating = false); }
+  }
+
+  Future<void> _onMapTap(LatLng point) async {
+    setState(() { _lat = point.latitude; _lng = point.longitude; _locating = true; });
+    await _reverseGeocode(point.latitude, point.longitude);
+  }
+
+  Future<void> _reverseGeocode(double lat, double lng) async {
+    setState(() { _lat = lat; _lng = lng; });
+    try {
       final uri = Uri.parse(
-        'https://nominatim.openstreetmap.org/reverse?lat=${pos.latitude}&lon=${pos.longitude}&format=json&accept-language=fr');
+        'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lng&format=json&accept-language=fr');
       final resp = await http.get(uri, headers: {'User-Agent': 'Fishdex/1.0'})
           .timeout(const Duration(seconds: 8));
       if (!mounted) return;
-      String locationText = '${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}';
       if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body) as Map<String, dynamic>;
-        final address = data['address'] as Map<String, dynamic>?;
+        final d    = jsonDecode(resp.body) as Map<String, dynamic>;
+        final addr = d['address'] as Map<String, dynamic>?;
+        final city = addr?['city'] ?? addr?['town'] ?? addr?['village'] ?? addr?['municipality'];
+        final dept = addr?['county'] ?? addr?['state'];
         final parts = <String>[];
-        final city   = address?['city'] ?? address?['town'] ?? address?['village'] ?? address?['municipality'];
-        final county = address?['county'] ?? address?['state'];
-        if (city   != null) parts.add(city   as String);
-        if (county != null) parts.add(county as String);
-        if (parts.isNotEmpty) locationText = parts.join(', ');
+        if (city != null) parts.add(city as String);
+        if (dept != null) parts.add(dept as String);
+        if (parts.isNotEmpty) setState(() => _locCtrl.text = parts.join(', '));
       }
-      setState(() {
-        _locCtrl.text = locationText;
-        _lat = pos.latitude;
-        _lng = pos.longitude;
-      });
-    } catch (e) {
-      if (mounted) _showLocError('Impossible de localiser');
-    } finally {
-      if (mounted) setState(() => _locating = false);
-    }
+    } catch (_) {}
+    if (mounted) setState(() => _locating = false);
   }
 
-  void _showLocError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: FishdexTheme.coral,
-        duration: const Duration(seconds: 2)));
-  }
+  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(msg), backgroundColor: FishdexTheme.coral, duration: const Duration(seconds: 2)));
 
+  // ── Save ───────────────────────────────────────────────────────────
   Future<void> _save() async {
     if (_isManual && _nameCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Indique le nom du poisson'),
-        backgroundColor: FishdexTheme.coral));
-      return;
+      _snack('Indique le nom du poisson'); return;
     }
     setState(() => _saving = true);
-    final b64 = widget.imageBytes != null ? base64Encode(widget.imageBytes!) : null;
-    final r   = widget.result;
-
-    final species    = _isManual ? (_latinCtrl.text.trim().isNotEmpty ? _latinCtrl.text.trim() : _nameCtrl.text.trim()) : r!.topSpecies;
-    final frenchName = _isManual ? _nameCtrl.text.trim() : _fr(r!.topSpecies);
+    final b64        = widget.imageBytes != null ? base64Encode(widget.imageBytes!) : null;
+    final r          = widget.result;
+    final species    = _isManual ? (_latinCtrl.text.trim().isNotEmpty ? _latinCtrl.text.trim() : _nameCtrl.text.trim()) : _selectedSpecies;
+    final frenchName = _isManual ? _nameCtrl.text.trim() : _fr(_selectedSpecies);
     final family     = _isManual ? (_familyCtrl.text.trim().isNotEmpty ? _familyCtrl.text.trim() : 'Inconnue') : r!.family;
-    final confidence = _isManual ? 1.0 : r!.topScore;
+    final confidence = _isManual ? 1.0 : (r?.top5.firstWhere((e) => e.species == _selectedSpecies, orElse: () => r!.top5.first).score ?? r!.topScore);
     final top5       = _isManual
         ? [{'species': species, 'score': 1.0}]
         : r!.top5.map((e) => {'species': e.species, 'score': e.score}).toList();
 
     await CatchService.save(FishCatch(
-      userId:      CatchService.userId,
-      userName:    CatchService.userName,
-      userHandle:  AuthService.currentUserHandle,
-      species:     species,
-      frenchName:  frenchName,
-      family:      family,
-      confidence:  confidence,
-      top5:        top5,
-      imageBase64: b64,
-      fishImageUrl: widget.fishImageUrl,
-      timestamp:   DateTime.now(),
-      sizecm:      double.tryParse(_sizeCtrl.text),
-      weightkg:    double.tryParse(_weightCtrl.text),
-      location:    _locCtrl.text.trim().isEmpty  ? null : _locCtrl.text.trim(),
-      notes:       _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      isPublished: _publishMode > 0,
-      isPrivate:   _publishMode == 1,
-      weather:     _weather,
-      seaState:    _seaState,
-      windSpeed:   double.tryParse(_windCtrl.text),
-      lat:         _lat,
-      lng:         _lng,
+      userId:         CatchService.userId,
+      userName:       CatchService.userName,
+      userHandle:     AuthService.currentUserHandle,
+      species:        species,
+      frenchName:     frenchName,
+      family:         family,
+      confidence:     confidence,
+      top5:           top5,
+      imageBase64:    b64,
+      fishImageUrl:   widget.fishImageUrl,
+      timestamp:      DateTime.now(),
+      sizecm:         _parseDecimal(_sizeCtrl.text),
+      weightkg:       _parseDecimal(_weightCtrl.text),
+      location:       _locCtrl.text.trim().isEmpty  ? null : _locCtrl.text.trim(),
+      notes:          _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      isPublished:    _publishMode == 1,
+      isPrivate:      false,
+      weather:        _weather,
+      seaState:       _seaState,
+      windSpeed:      _parseDecimal(_windCtrl.text),
+      lat:            _lat,
+      lng:            _lng,
+      locationRadius: _locationRadius > 0 ? _locationRadius : null,
     ));
     if (!mounted) return;
     widget.onSaved();
     Navigator.pop(context);
   }
 
+  // ── Build ──────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final r      = widget.result;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -727,17 +683,16 @@ class _SaveSheetState extends State<_SaveSheet> {
             decoration: BoxDecoration(color: Colors.black.withOpacity(0.12), borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 16),
 
-          // En-tête
+          // ── Photo header ─────────────────────────────────────────
           Row(children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+            ClipRRect(borderRadius: BorderRadius.circular(12),
               child: SizedBox(width: 52, height: 52, child: _preview())),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (r != null) ...[
-                Text(_fr(r.topSpecies),
+              if (!_isManual) ...[
+                Text(_fr(_selectedSpecies),
                   style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
-                Text(r.topSpecies,
+                Text(_selectedSpecies,
                   style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
               ] else ...[
                 const Text('Saisie manuelle',
@@ -749,7 +704,63 @@ class _SaveSheetState extends State<_SaveSheet> {
           ]),
           const SizedBox(height: 20),
 
-          // Champs manuels (mode sans IA)
+          // ── Sélecteur d'espèce IA ────────────────────────────────
+          if (!_isManual && widget.result != null) ...[
+            _sectionLabel('🤖', 'POISSON RECONNU — CHOISIS TON ESPÈCE'),
+            const SizedBox(height: 8),
+            ...widget.result!.top5.asMap().entries.map((e) {
+              final i  = e.key;
+              final sp = e.value;
+              final sel = _selectedSpecies == sp.species;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedSpecies = sp.species),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      color: sel ? FishdexTheme.primary.withOpacity(0.08) : Colors.black.withOpacity(0.02),
+                      border: Border.all(
+                        color: sel ? FishdexTheme.primary.withOpacity(0.4) : Colors.black.withOpacity(0.06),
+                        width: sel ? 1.5 : 1)),
+                    child: Row(children: [
+                      Container(width: 28, height: 28,
+                        decoration: BoxDecoration(shape: BoxShape.circle,
+                          color: sel ? FishdexTheme.primary.withOpacity(0.15) : Colors.black.withOpacity(0.04)),
+                        child: Center(child: Text('${i + 1}',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                            color: sel ? FishdexTheme.primary : FishdexTheme.textTertiary)))),
+                      const SizedBox(width: 10),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(_fr(sp.species), style: TextStyle(
+                          color: sel ? FishdexTheme.textPrimary : FishdexTheme.textSecondary,
+                          fontSize: 14, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                        Text(sp.species, style: const TextStyle(
+                          color: FishdexTheme.textTertiary, fontSize: 11, fontStyle: FontStyle.italic)),
+                      ])),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: sel ? FishdexTheme.primary.withOpacity(0.12) : Colors.black.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(8)),
+                        child: Text('${(sp.score * 100).toStringAsFixed(0)}%',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                            color: sel ? FishdexTheme.primary : FishdexTheme.textTertiary))),
+                      if (sel) ...[
+                        const SizedBox(width: 6),
+                        const Icon(CupertinoIcons.checkmark_circle_fill, color: FishdexTheme.primary, size: 18),
+                      ],
+                    ]),
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 20),
+          ],
+
+          // ── Identification manuelle ───────────────────────────────
           if (_isManual) ...[
             _sectionLabel('🐟', 'IDENTIFICATION DU POISSON'),
             const SizedBox(height: 10),
@@ -761,44 +772,62 @@ class _SaveSheetState extends State<_SaveSheet> {
             const SizedBox(height: 20),
           ],
 
-          // Infos prise
+          // ── Mesures ───────────────────────────────────────────────
           _sectionLabel('📏', 'INFOS SUR LA PRISE (FACULTATIF)'),
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: _field('Taille (cm)', _sizeCtrl, '42',
-                type: const TextInputType.numberWithOptions(decimal: true))),
+                type: const TextInputType.numberWithOptions(decimal: true), decimal: true)),
             const SizedBox(width: 10),
             Expanded(child: _field('Poids (kg)', _weightCtrl, '1.8',
-                type: const TextInputType.numberWithOptions(decimal: true))),
+                type: const TextInputType.numberWithOptions(decimal: true), decimal: true)),
           ]),
           const SizedBox(height: 10),
 
-          // Localisation avec bouton GPS
-          _sectionLabel('📍', 'LIEU DE PÊCHE', trailing: GestureDetector(
-            onTap: _locating ? null : _detectLocation,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: FishdexTheme.primary.withOpacity(0.10),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: FishdexTheme.primary.withOpacity(0.2))),
-              child: _locating
-                  ? const SizedBox(width: 14, height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: FishdexTheme.primary))
-                  : Row(mainAxisSize: MainAxisSize.min, children: const [
-                      Icon(CupertinoIcons.location_fill, color: FishdexTheme.primary, size: 12),
-                      SizedBox(width: 4),
-                      Text('Ma position', style: TextStyle(color: FishdexTheme.primary, fontSize: 11, fontWeight: FontWeight.w600)),
-                    ]),
-            ),
-          )),
+          // ── Lieu + carte ──────────────────────────────────────────
+          _sectionLabel('📍', 'LIEU DE PÊCHE'),
           const SizedBox(height: 8),
-          _field('Lieu de pêche', _locCtrl, 'Lac de Villefranche…'),
+          Row(children: [
+            Expanded(child: _field('Lieu de pêche', _locCtrl, 'Lac de Villefranche…')),
+            const SizedBox(width: 6),
+            // GPS
+            GestureDetector(
+              onTap: _locating ? null : _detectGPS,
+              child: Container(
+                height: 44, width: 44,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: FishdexTheme.primary.withOpacity(0.10),
+                  border: Border.all(color: FishdexTheme.primary.withOpacity(0.25))),
+                child: _locating
+                    ? const Center(child: CupertinoActivityIndicator())
+                    : const Icon(CupertinoIcons.location_fill, color: FishdexTheme.primary, size: 18))),
+            const SizedBox(width: 6),
+            // Toggle carte
+            GestureDetector(
+              onTap: () => setState(() => _showMapPicker = !_showMapPicker),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                height: 44, width: 44,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: _showMapPicker ? FishdexTheme.primary : FishdexTheme.primary.withOpacity(0.08),
+                  border: Border.all(color: FishdexTheme.primary.withOpacity(0.3))),
+                child: Icon(CupertinoIcons.map_fill,
+                  color: _showMapPicker ? Colors.white : FishdexTheme.primary, size: 16))),
+          ]),
+
+          // ── Carte cliquable ──────────────────────────────────────
+          if (_showMapPicker) ...[
+            const SizedBox(height: 8),
+            _buildMapPicker(),
+          ],
+
           const SizedBox(height: 10),
           _field('Notes', _notesCtrl, 'Belle prise…', maxLines: 2),
           const SizedBox(height: 20),
 
-          // Météo
+          // ── Météo ─────────────────────────────────────────────────
           _sectionLabel('🌤️', 'CONDITIONS MÉTÉO (FACULTATIF)'),
           const SizedBox(height: 10),
           _label('Météo'),
@@ -822,12 +851,9 @@ class _SaveSheetState extends State<_SaveSheet> {
                   Text(w.label, style: TextStyle(
                     color: sel ? FishdexTheme.primary : FishdexTheme.textSecondary,
                     fontSize: 12, fontWeight: sel ? FontWeight.w700 : FontWeight.w400)),
-                ]),
-              ),
-            );
+                ])));
           }).toList()),
           const SizedBox(height: 12),
-
           _label('État de la mer / eau'),
           const SizedBox(height: 6),
           Row(children: _seaOptions.map((s) {
@@ -850,29 +876,23 @@ class _SaveSheetState extends State<_SaveSheet> {
                   Text(s.label, style: TextStyle(
                     color: sel ? FishdexTheme.primary : FishdexTheme.textSecondary,
                     fontSize: 10, fontWeight: sel ? FontWeight.w700 : FontWeight.w400)),
-                ]),
-              ),
-            ));
+                ]))));
           }).toList()),
           const SizedBox(height: 12),
-
           Row(children: [
             Expanded(child: _field('Vent (km/h)', _windCtrl, '15',
-                type: const TextInputType.numberWithOptions(decimal: true))),
-            const SizedBox(width: 10),
+                type: const TextInputType.numberWithOptions(decimal: true), decimal: true)),
             const Expanded(child: SizedBox()),
           ]),
           const SizedBox(height: 20),
 
-          // Visibilité
+          // ── Visibilité (2 options) ────────────────────────────────
           _sectionLabel('👁️', 'VISIBILITÉ'),
           const SizedBox(height: 10),
           Row(children: [
-            _publishBtn(0, '🔒', 'Privé'),
+            _publishBtn(0, '🔒', 'Privé',  'Uniquement toi'),
             const SizedBox(width: 8),
-            _publishBtn(1, '👥', 'Amis'),
-            const SizedBox(width: 8),
-            _publishBtn(2, '🌍', 'Public'),
+            _publishBtn(1, '🌍', 'Public', 'Visible de tous'),
           ]),
           const SizedBox(height: 24),
 
@@ -900,6 +920,73 @@ class _SaveSheetState extends State<_SaveSheet> {
     );
   }
 
+  // ── Map picker ─────────────────────────────────────────────────────
+  Widget _buildMapPicker() {
+    final hasPin = _lat != null && _lng != null;
+    final center = hasPin ? LatLng(_lat!, _lng!) : const LatLng(46.5, 2.5);
+    final zoom   = hasPin ? 12.0 : 5.0;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('Tap sur la carte pour placer le pin de pêche',
+        style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+      const SizedBox(height: 6),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(height: 220,
+          child: FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: center, initialZoom: zoom,
+              onTap: (_, point) => _onMapTap(point)),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.fishdex.app'),
+              if (hasPin) ...[
+                if (_locationRadius > 0)
+                  CircleLayer(circles: [
+                    CircleMarker(
+                      point: LatLng(_lat!, _lng!),
+                      radius: _locationRadius * 1000,
+                      useRadiusInMeter: true,
+                      color: FishdexTheme.primary.withOpacity(0.12),
+                      borderColor: FishdexTheme.primary.withOpacity(0.5),
+                      borderStrokeWidth: 2),
+                  ]),
+                MarkerLayer(markers: [
+                  Marker(
+                    point: LatLng(_lat!, _lng!),
+                    child: _locating
+                        ? const CupertinoActivityIndicator()
+                        : const Icon(CupertinoIcons.location_fill, color: FishdexTheme.coral, size: 30)),
+                ]),
+              ],
+            ],
+          ),
+        ),
+      ),
+      if (hasPin) ...[
+        const SizedBox(height: 10),
+        Row(children: [
+          const Icon(CupertinoIcons.circle, color: FishdexTheme.primary, size: 14),
+          const SizedBox(width: 6),
+          Text('Périmètre : ${_locationRadius == 0 ? "Position exacte" : "${_locationRadius.toStringAsFixed(0)} km"}',
+            style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
+        ]),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(activeTrackColor: FishdexTheme.primary,
+            thumbColor: FishdexTheme.primary, inactiveTrackColor: FishdexTheme.primary.withOpacity(0.15),
+            trackHeight: 3, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8)),
+          child: Slider(
+            value: _locationRadius, min: 0, max: 20, divisions: 20,
+            onChanged: (v) => setState(() => _locationRadius = v))),
+        const Text('0 = position exacte · slider pour masquer l\'endroit précis',
+          style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 10)),
+      ],
+    ]);
+  }
+
+  // ── Widgets helpers ────────────────────────────────────────────────
   Widget _preview() {
     if (widget.imageBytes != null) return Image.memory(widget.imageBytes!, fit: BoxFit.cover);
     if (widget.fishImageUrl != null) return Image.network(widget.fishImageUrl!, fit: BoxFit.cover);
@@ -922,7 +1009,7 @@ class _SaveSheetState extends State<_SaveSheet> {
     style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500));
 
   Widget _field(String label, TextEditingController ctrl, String hint,
-      {TextInputType type = TextInputType.text, int maxLines = 1}) {
+      {TextInputType type = TextInputType.text, int maxLines = 1, bool decimal = false}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label, style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
       const SizedBox(height: 4),
@@ -933,6 +1020,7 @@ class _SaveSheetState extends State<_SaveSheet> {
           border: Border.all(color: Colors.black.withOpacity(0.07))),
         child: TextField(
           controller: ctrl, keyboardType: type, maxLines: maxLines,
+          inputFormatters: decimal ? [_DecimalInputFormatter()] : null,
           style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14),
           decoration: InputDecoration(
             hintText: hint,
@@ -942,7 +1030,7 @@ class _SaveSheetState extends State<_SaveSheet> {
     ]);
   }
 
-  Widget _publishBtn(int mode, String emoji, String label) {
+  Widget _publishBtn(int mode, String emoji, String label, String sub) {
     final sel = _publishMode == mode;
     return Expanded(child: GestureDetector(
       onTap: () => setState(() => _publishMode = mode),
@@ -956,22 +1044,24 @@ class _SaveSheetState extends State<_SaveSheet> {
             color: sel ? FishdexTheme.primary.withOpacity(0.4) : Colors.black.withOpacity(0.07),
             width: sel ? 1.5 : 1)),
         child: Column(children: [
-          Text(emoji, style: const TextStyle(fontSize: 18)),
+          Text(emoji, style: const TextStyle(fontSize: 20)),
           const SizedBox(height: 2),
           Text(label, style: TextStyle(
             color: sel ? FishdexTheme.primary : FishdexTheme.textSecondary,
-            fontSize: 11, fontWeight: FontWeight.w600)),
+            fontSize: 12, fontWeight: FontWeight.w700)),
+          Text(sub, style: TextStyle(
+            color: sel ? FishdexTheme.primary.withOpacity(0.7) : FishdexTheme.textTertiary,
+            fontSize: 9, fontWeight: FontWeight.w500)),
         ]),
       ),
     ));
   }
 }
 
-// ── Scan line ────────────────────────────────────────────────────────
+// ── Scan line ─────────────────────────────────────────────────────────
 class _ScanPainter extends CustomPainter {
   final double t;
   _ScanPainter(this.t);
-
   @override
   void paint(Canvas canvas, Size size) {
     final y = size.height * t;
@@ -982,7 +1072,6 @@ class _ScanPainter extends CustomPainter {
         begin: Alignment.topCenter, end: Alignment.bottomCenter,
       ).createShader(Rect.fromLTWH(0, y - 20, size.width, 40)));
   }
-
   @override
   bool shouldRepaint(_ScanPainter old) => old.t != t;
 }
