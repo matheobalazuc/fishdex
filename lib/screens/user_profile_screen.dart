@@ -53,6 +53,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             otherHandle: handle,
           )));
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur messagerie : $e'),
+          backgroundColor: FishdexTheme.coral));
+      }
     } finally {
       if (mounted) setState(() => _openingChat = false);
     }

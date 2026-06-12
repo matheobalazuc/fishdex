@@ -101,8 +101,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
           child: StreamBuilder<List<ChatMessage>>(
             stream: MessagingService.messagesStream(widget.convId),
             builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting) {
+              if (snap.connectionState == ConnectionState.waiting &&
+                  snap.data == null) {
                 return const Center(child: CupertinoActivityIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Impossible de charger les messages.\nVérifie ta connexion.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+                ));
               }
               final msgs = snap.data ?? [];
               if (msgs.isEmpty) {

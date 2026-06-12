@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import '../services/messaging_service.dart';
 import '../theme/fishdex_theme.dart';
 
 class LiquidNavBar extends StatefulWidget {
@@ -96,24 +97,31 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                 ),
               ],
             ),
-            child: Row(
-              children: List.generate(_items.length, (i) {
-                final selected = i == widget.currentIndex;
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => widget.onTap(i),
-                    behavior: HitTestBehavior.opaque,
-                    child: _NavItemWidget(
-                      item: _items[i],
-                      selected: selected,
-                      selectAnim: selected
-                          ? _selectAnim
-                          : const AlwaysStoppedAnimation(0),
-                      isCamera: i == 2,
-                    ),
-                  ),
+            child: StreamBuilder<int>(
+              stream: MessagingService.totalUnreadStream(),
+              builder: (context, snap) {
+                final unread = snap.data ?? 0;
+                return Row(
+                  children: List.generate(_items.length, (i) {
+                    final selected = i == widget.currentIndex;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => widget.onTap(i),
+                        behavior: HitTestBehavior.opaque,
+                        child: _NavItemWidget(
+                          item: _items[i],
+                          selected: selected,
+                          selectAnim: selected
+                              ? _selectAnim
+                              : const AlwaysStoppedAnimation(0),
+                          isCamera: i == 2,
+                          badgeCount: i == 4 ? unread : 0,
+                        ),
+                      ),
+                    );
+                  }),
                 );
-              }),
+              },
             ),
           ),
         ),
@@ -127,12 +135,14 @@ class _NavItemWidget extends StatelessWidget {
   final bool selected;
   final Animation<double> selectAnim;
   final bool isCamera;
+  final int badgeCount;
 
   const _NavItemWidget({
     required this.item,
     required this.selected,
     required this.selectAnim,
     required this.isCamera,
+    this.badgeCount = 0,
   });
 
   @override
@@ -188,6 +198,7 @@ class _NavItemWidget extends StatelessWidget {
               offset: Offset(0, selected ? -1.5 * selectAnim.value : 0),
               child: Stack(
                 alignment: Alignment.center,
+                clipBehavior: Clip.none,
                 children: [
                   if (selected)
                     AnimatedContainer(
@@ -206,6 +217,24 @@ class _NavItemWidget extends StatelessWidget {
                         : FishdexTheme.textTertiary,
                     size: 22,
                   ),
+                  if (badgeCount > 0)
+                    Positioned(
+                      top: -4, right: -6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: FishdexTheme.coral,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white, width: 1.5)),
+                        child: Text(
+                          badgeCount > 9 ? '9+' : '$badgeCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800)),
+                      ),
+                    ),
                 ],
               ),
             );

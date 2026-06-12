@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth_service.dart';
 
@@ -97,20 +98,25 @@ class MessagingService {
         'text':      trimmed,
         'timestamp': FieldValue.serverTimestamp(),
       });
-      await _db.collection('conversations').doc(convId).update({
-        'lastMessage':        trimmed,
-        'lastAt':             FieldValue.serverTimestamp(),
-        'unread.$otherUid':   FieldValue.increment(1),
-      });
-      await _db.collection('notifications').doc(otherUid).collection('items').add({
-        'type':         'message',
-        'fromUserId':   uid,
-        'fromUserName': AuthService.currentUserName,
-        'catchId':      convId,
-        'catchName':    trimmed.length > 40 ? '${trimmed.substring(0, 40)}…' : trimmed,
-        'timestamp':    FieldValue.serverTimestamp(),
-        'read':         false,
-      });
+      final Map<String, dynamic> convUpdate = {
+        'lastMessage': trimmed,
+        'lastAt':      FieldValue.serverTimestamp(),
+      };
+      if (otherUid.isNotEmpty) {
+        convUpdate['unread.$otherUid'] = FieldValue.increment(1);
+      }
+      await _db.collection('conversations').doc(convId).update(convUpdate);
+      if (otherUid.isNotEmpty) {
+        await _db.collection('notifications').doc(otherUid).collection('items').add({
+          'type':         'message',
+          'fromUserId':   uid,
+          'fromUserName': AuthService.currentUserName,
+          'catchId':      convId,
+          'catchName':    trimmed.length > 40 ? '${trimmed.substring(0, 40)}…' : trimmed,
+          'timestamp':    FieldValue.serverTimestamp(),
+          'read':         false,
+        });
+      }
       return null;
     } catch (e) {
       return e.toString();
@@ -128,28 +134,41 @@ class MessagingService {
   static Stream<List<Conversation>> conversationsStream() {
     final uid = AuthService.currentUserId;
     if (uid.isEmpty) return Stream.value([]);
-    return _db
+    final controller = StreamController<List<Conversation>>.broadcast();
+    _db
         .collection('conversations')
         .where('participants', arrayContains: uid)
         .snapshots()
-        .map((s) {
-          final list = s.docs
-              .map((d) => Conversation.fromDoc(uid, d.id, d.data()))
-              .toList()
-            ..sort((a, b) => b.lastAt.compareTo(a.lastAt));
-          return list;
-        })
-        .handleError((_) => <Conversation>[]);
+        .listen(
+          (s) {
+            final list = s.docs
+                .map((d) => Conversation.fromDoc(uid, d.id, d.data()))
+                .toList()
+              ..sort((a, b) => b.lastAt.compareTo(a.lastAt));
+            controller.add(list);
+          },
+          onError: (e) => controller.add([]),
+          onDone: () => controller.close(),
+        );
+    return controller.stream;
   }
 
-  static Stream<List<ChatMessage>> messagesStream(String convId) => _db
-      .collection('conversations')
-      .doc(convId)
-      .collection('msgs')
-      .orderBy('timestamp')
-      .snapshots()
-      .map((s) => s.docs.map((d) => ChatMessage.fromDoc(d.id, d.data())).toList())
-      .handleError((_) => <ChatMessage>[]);
+  static Stream<List<ChatMessage>> messagesStream(String convId) {
+    final controller = StreamController<List<ChatMessage>>.broadcast();
+    _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('msgs')
+        .orderBy('timestamp')
+        .snapshots()
+        .listen(
+          (s) => controller.add(
+              s.docs.map((d) => ChatMessage.fromDoc(d.id, d.data())).toList()),
+          onError: (e) => controller.add([]),
+          onDone: () => controller.close(),
+        );
+    return controller.stream;
+  }
 
   static Stream<int> totalUnreadStream() {
     final uid = AuthService.currentUserId;
