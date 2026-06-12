@@ -11,7 +11,7 @@ import '../widgets/glass_card.dart';
 import 'catch_detail_screen.dart';
 import 'conversation_screen.dart';
 
-class UserProfileScreen extends StatelessWidget {
+class UserProfileScreen extends StatefulWidget {
   final String userId;
   final String displayName;
   final String userHandle;
@@ -22,6 +22,41 @@ class UserProfileScreen extends StatelessWidget {
     required this.displayName,
     required this.userHandle,
   });
+
+  @override
+  State<UserProfileScreen> createState() => _UserProfileScreenState();
+}
+
+class _UserProfileScreenState extends State<UserProfileScreen> {
+  bool _openingChat = false;
+
+  String get userId      => widget.userId;
+  String get displayName => widget.displayName;
+  String get userHandle  => widget.userHandle;
+
+  Future<void> _openConversation(
+      BuildContext context, String name, String handle) async {
+    if (_openingChat) return;
+    setState(() => _openingChat = true);
+    try {
+      final convId = await MessagingService.ensureConversation(
+        otherUid:    userId,
+        otherName:   name,
+        otherHandle: handle,
+      );
+      if (mounted) {
+        Navigator.push(context, CupertinoPageRoute(
+          builder: (_) => ConversationScreen(
+            convId:      convId,
+            otherUid:    userId,
+            otherName:   name,
+            otherHandle: handle,
+          )));
+      }
+    } finally {
+      if (mounted) setState(() => _openingChat = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,27 +178,7 @@ class UserProfileScreen extends StatelessWidget {
                 )),
                 const SizedBox(width: 10),
                 GestureDetector(
-                  onTap: () async {
-                    final userData = await FirebaseFirestore.instance
-                        .collection('users').doc(userId).get();
-                    final data = userData.data() ?? {};
-                    final name   = data['displayName'] as String? ?? displayName;
-                    final handle = data['username']    as String? ?? userHandle;
-                    final convId = await MessagingService.ensureConversation(
-                      otherUid:    userId,
-                      otherName:   name,
-                      otherHandle: handle,
-                    );
-                    if (context.mounted) {
-                      Navigator.push(context, CupertinoPageRoute(
-                        builder: (_) => ConversationScreen(
-                          convId:      convId,
-                          otherUid:    userId,
-                          otherName:   name,
-                          otherHandle: handle,
-                        )));
-                    }
-                  },
+                  onTap: () => _openConversation(context, name, handle),
                   child: Container(
                     width: 46, height: 46,
                     decoration: BoxDecoration(
@@ -171,9 +186,12 @@ class UserProfileScreen extends StatelessWidget {
                       color: FishdexTheme.primary.withOpacity(0.08),
                       border: Border.all(
                         color: FishdexTheme.primary.withOpacity(0.25))),
-                    child: const Icon(
-                      CupertinoIcons.chat_bubble_text_fill,
-                      color: FishdexTheme.primary, size: 18)),
+                    child: _openingChat
+                        ? const Center(
+                            child: CupertinoActivityIndicator())
+                        : const Icon(
+                            CupertinoIcons.chat_bubble_text_fill,
+                            color: FishdexTheme.primary, size: 18)),
                 ),
               ]),
             ),
