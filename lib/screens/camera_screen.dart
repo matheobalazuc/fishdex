@@ -15,7 +15,7 @@ import '../services/wiki_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 
-const _apiUrl = 'https://acids-definitely-leo-his.trycloudflare.com/api/predict';
+const _apiUrl = 'https://struck-dept-delayed-resulted.trycloudflare.com/api/predict';
 
 const _frenchNames = {
   'Sparus aurata': 'Daurade royale',

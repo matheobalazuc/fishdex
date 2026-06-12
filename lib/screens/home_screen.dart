@@ -118,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                   const SizedBox(height: 2),
-                  const Text('Fil des prises · Top pêcheurs',
+                  const Text('Fil des prises · Top pêcheurs · Hot Spots',
                     style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13)),
                 ],
               ),
@@ -965,6 +965,11 @@ class _FeedCard extends StatelessWidget {
                   if (catch_.weightkg != null) _chip('⚖️ ${catch_.weightkg} kg', FishdexTheme.mint),
                   if (catch_.sizecm   != null) _chip('📏 ${catch_.sizecm} cm',   FishdexTheme.coral),
                 ]),
+                if (weatherSummary(catch_).isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(weatherSummary(catch_),
+                    style: const TextStyle(color: FishdexTheme.textTertiary, fontSize: 11)),
+                ],
                 if (catch_.notes != null) ...[
                   const SizedBox(height: 8),
                   Text(catch_.notes!, maxLines: 2, overflow: TextOverflow.ellipsis,
