@@ -22,9 +22,10 @@ class FishCatch {
   // Conditions météo
   final String? weather;   // sunny|cloudy|rainy|stormy|foggy
   final String? seaState;  // calm|slight|rough|storm
-  final double? windSpeed; // km/h
+  final double? windSpeed;       // km/h
   final double? lat;
   final double? lng;
+  final double? locationRadius;  // km, null = exact
   // Social (gérés par SocialService, jamais écrasés via toFirestore)
   final List<String> likedBy;
   final int commentsCount;
@@ -55,6 +56,7 @@ class FishCatch {
     this.windSpeed,
     this.lat,
     this.lng,
+    this.locationRadius,
     this.likedBy = const [],
     this.commentsCount = 0,
     this.lastCommentText,
@@ -79,6 +81,7 @@ class FishCatch {
     double? windSpeed,
     double? lat,
     double? lng,
+    double? locationRadius,
     List<String>? likedBy,
     int? commentsCount,
     bool clearImage    = false,
@@ -108,9 +111,10 @@ class FishCatch {
     weather:          weather      ?? this.weather,
     seaState:         seaState     ?? this.seaState,
     windSpeed:        windSpeed    ?? this.windSpeed,
-    lat:              lat          ?? this.lat,
-    lng:              lng          ?? this.lng,
-    likedBy:          likedBy      ?? this.likedBy,
+    lat:              lat            ?? this.lat,
+    lng:              lng            ?? this.lng,
+    locationRadius:   locationRadius ?? this.locationRadius,
+    likedBy:          likedBy        ?? this.likedBy,
     commentsCount:    commentsCount ?? this.commentsCount,
     lastCommentText:  lastCommentText ?? this.lastCommentText,
     lastCommentUser:  lastCommentUser ?? this.lastCommentUser,
@@ -137,8 +141,9 @@ class FishCatch {
     if (weather   != null) 'weather':   weather,
     if (seaState  != null) 'seaState':  seaState,
     if (windSpeed != null) 'windSpeed': windSpeed,
-    if (lat       != null) 'lat':       lat,
-    if (lng       != null) 'lng':       lng,
+    if (lat            != null) 'lat':            lat,
+    if (lng            != null) 'lng':            lng,
+    if (locationRadius != null) 'locationRadius': locationRadius,
   };
 
   factory FishCatch.fromFirestore(String id, Map<String, dynamic> d) => FishCatch(
@@ -165,8 +170,9 @@ class FishCatch {
     weather:      d['weather']    as String?,
     seaState:     d['seaState']   as String?,
     windSpeed:    (d['windSpeed'] as num?)?.toDouble(),
-    lat:          (d['lat']       as num?)?.toDouble(),
-    lng:          (d['lng']       as num?)?.toDouble(),
+    lat:            (d['lat']            as num?)?.toDouble(),
+    lng:            (d['lng']            as num?)?.toDouble(),
+    locationRadius: (d['locationRadius'] as num?)?.toDouble(),
     likedBy:          List<String>.from(d['likedBy'] as List? ?? []),
     commentsCount:    (d['commentsCount']  as num?)?.toInt() ?? 0,
     lastCommentText:  d['lastCommentText'] as String?,
