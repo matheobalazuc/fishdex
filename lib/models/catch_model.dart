@@ -19,6 +19,12 @@ class FishCatch {
   final String? notes;
   final bool isPublished;
   final bool isPrivate;
+  // Conditions météo
+  final String? weather;   // sunny|cloudy|rainy|stormy|foggy
+  final String? seaState;  // calm|slight|rough|storm
+  final double? windSpeed; // km/h
+  final double? lat;
+  final double? lng;
   // Social (gérés par SocialService, jamais écrasés via toFirestore)
   final List<String> likedBy;
   final int commentsCount;
@@ -44,6 +50,11 @@ class FishCatch {
     this.notes,
     this.isPublished = false,
     this.isPrivate = false,
+    this.weather,
+    this.seaState,
+    this.windSpeed,
+    this.lat,
+    this.lng,
     this.likedBy = const [],
     this.commentsCount = 0,
     this.lastCommentText,
@@ -63,6 +74,11 @@ class FishCatch {
     String? notes,
     bool? isPublished,
     bool? isPrivate,
+    String? weather,
+    String? seaState,
+    double? windSpeed,
+    double? lat,
+    double? lng,
     List<String>? likedBy,
     int? commentsCount,
     bool clearImage    = false,
@@ -87,15 +103,19 @@ class FishCatch {
     weightkg:     clearWeight  ? null : (weightkg ?? this.weightkg),
     location:     clearLocation? null : (location ?? this.location),
     notes:        clearNotes   ? null : (notes    ?? this.notes),
-    isPublished:      isPublished      ?? this.isPublished,
-    isPrivate:        isPrivate        ?? this.isPrivate,
-    likedBy:          likedBy          ?? this.likedBy,
-    commentsCount:    commentsCount    ?? this.commentsCount,
-    lastCommentText:  lastCommentText  ?? this.lastCommentText,
-    lastCommentUser:  lastCommentUser  ?? this.lastCommentUser,
+    isPublished:      isPublished  ?? this.isPublished,
+    isPrivate:        isPrivate    ?? this.isPrivate,
+    weather:          weather      ?? this.weather,
+    seaState:         seaState     ?? this.seaState,
+    windSpeed:        windSpeed    ?? this.windSpeed,
+    lat:              lat          ?? this.lat,
+    lng:              lng          ?? this.lng,
+    likedBy:          likedBy      ?? this.likedBy,
+    commentsCount:    commentsCount ?? this.commentsCount,
+    lastCommentText:  lastCommentText ?? this.lastCommentText,
+    lastCommentUser:  lastCommentUser ?? this.lastCommentUser,
   );
 
-  // likedBy / commentsCount gérés par SocialService → non inclus ici
   Map<String, dynamic> toFirestore() => {
     'userId':       userId,
     'userName':     userName,
@@ -110,10 +130,15 @@ class FishCatch {
     'timestamp':    Timestamp.fromDate(timestamp),
     'isPublished':  isPublished,
     'isPrivate':    isPrivate,
-    if (sizecm   != null) 'sizecm':   sizecm,
-    if (weightkg != null) 'weightkg': weightkg,
-    if (location != null) 'location': location,
-    if (notes    != null) 'notes':    notes,
+    if (sizecm    != null) 'sizecm':    sizecm,
+    if (weightkg  != null) 'weightkg':  weightkg,
+    if (location  != null) 'location':  location,
+    if (notes     != null) 'notes':     notes,
+    if (weather   != null) 'weather':   weather,
+    if (seaState  != null) 'seaState':  seaState,
+    if (windSpeed != null) 'windSpeed': windSpeed,
+    if (lat       != null) 'lat':       lat,
+    if (lng       != null) 'lng':       lng,
   };
 
   factory FishCatch.fromFirestore(String id, Map<String, dynamic> d) => FishCatch(
@@ -122,8 +147,8 @@ class FishCatch {
     userName:     d['userName']    as String? ?? 'Pêcheur',
     userHandle:   d['userHandle']  as String? ?? '',
     species:      d['species']     as String? ?? '',
-    frenchName:   d['frenchName']as String? ?? '',
-    family:       d['family']    as String? ?? '',
+    frenchName:   d['frenchName']  as String? ?? '',
+    family:       d['family']      as String? ?? '',
     confidence:   (d['confidence'] as num?)?.toDouble() ?? 0,
     top5:         (d['top5'] as List<dynamic>?)
                     ?.map((e) => Map<String, dynamic>.from(e as Map))
@@ -131,15 +156,20 @@ class FishCatch {
     imageBase64:  d['imageBase64']  as String?,
     fishImageUrl: d['fishImageUrl'] as String?,
     timestamp:    (d['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    sizecm:       (d['sizecm']   as num?)?.toDouble(),
-    weightkg:     (d['weightkg'] as num?)?.toDouble(),
-    location:     d['location']  as String?,
-    notes:        d['notes']     as String?,
+    sizecm:       (d['sizecm']    as num?)?.toDouble(),
+    weightkg:     (d['weightkg']  as num?)?.toDouble(),
+    location:     d['location']   as String?,
+    notes:        d['notes']      as String?,
     isPublished:  d['isPublished'] as bool? ?? false,
     isPrivate:    d['isPrivate']   as bool? ?? false,
+    weather:      d['weather']    as String?,
+    seaState:     d['seaState']   as String?,
+    windSpeed:    (d['windSpeed'] as num?)?.toDouble(),
+    lat:          (d['lat']       as num?)?.toDouble(),
+    lng:          (d['lng']       as num?)?.toDouble(),
     likedBy:          List<String>.from(d['likedBy'] as List? ?? []),
-    commentsCount:    (d['commentsCount']   as num?)?.toInt() ?? 0,
-    lastCommentText:  d['lastCommentText']  as String?,
-    lastCommentUser:  d['lastCommentUser']  as String?,
+    commentsCount:    (d['commentsCount']  as num?)?.toInt() ?? 0,
+    lastCommentText:  d['lastCommentText'] as String?,
+    lastCommentUser:  d['lastCommentUser'] as String?,
   );
 }

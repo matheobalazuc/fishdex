@@ -63,6 +63,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _buildAppBar(),
         SliverToBoxAdapter(child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: _buildQuickActions())),
+        SliverToBoxAdapter(child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           child: _buildFeed())),
         SliverToBoxAdapter(child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -180,6 +183,60 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
+  }
+
+  // ── Actions rapides ──────────────────────────────────────────────────
+  Widget _buildQuickActions() {
+    return Row(children: [
+      Expanded(child: GestureDetector(
+        onTap: () => _openUrl('https://www.peche.fr/peche-sportive/calendrier-des-saisons/'),
+        child: Container(
+          height: 60,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF4FC3F7), Color(0xFF0288D1)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [BoxShadow(color: const Color(0xFF0288D1).withOpacity(0.25), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text('📅', style: TextStyle(fontSize: 22)),
+            SizedBox(width: 8),
+            Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Calendrier', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+              Text('Saisons de pêche', style: TextStyle(color: Colors.white70, fontSize: 10)),
+            ]),
+          ]),
+        ),
+      )),
+      const SizedBox(width: 12),
+      Expanded(child: GestureDetector(
+        onTap: () => _openUrl('https://where.peche.fr/'),
+        child: Container(
+          height: 60,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [BoxShadow(color: const Color(0xFF2E7D32).withOpacity(0.25), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text('🗺️', style: TextStyle(fontSize: 22)),
+            SizedBox(width: 8),
+            Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Carte pêche', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+              Text('Zones autorisées', style: TextStyle(color: Colors.white70, fontSize: 10)),
+            ]),
+          ]),
+        ),
+      )),
+    ]);
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   // ── Fil des prises ───────────────────────────────────────────────────
