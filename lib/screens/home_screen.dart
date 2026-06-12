@@ -13,6 +13,8 @@ import '../services/social_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 import 'catch_detail_screen.dart';
+import 'fishing_calendar_screen.dart';
+import 'fishing_map_screen.dart';
 import 'user_profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -72,13 +74,13 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _buildTopFishers())),
         SliverToBoxAdapter(child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-          child: _buildMyRecent())),
+          child: _buildHotSpots(context))),
         SliverToBoxAdapter(child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-          child: _buildMyAchievements(context))),
+          child: _buildMyRecent())),
         SliverToBoxAdapter(child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 140),
-          child: _buildHotSpots(context))),
+          child: _buildMyAchievements(context))),
       ],
     );
   }
@@ -189,54 +191,43 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildQuickActions() {
     return Row(children: [
       Expanded(child: GestureDetector(
-        onTap: () => _openUrl('https://www.peche.fr/peche-sportive/calendrier-des-saisons/'),
+        onTap: () => Navigator.push(context,
+            CupertinoPageRoute(builder: (_) => const FishingCalendarScreen())),
         child: Container(
-          height: 60,
+          height: 44,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [Color(0xFF4FC3F7), Color(0xFF0288D1)],
               begin: Alignment.topLeft, end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [BoxShadow(color: const Color(0xFF0288D1).withOpacity(0.25), blurRadius: 12, offset: const Offset(0, 4))],
-          ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [BoxShadow(color: const Color(0xFF0288D1).withOpacity(0.22), blurRadius: 8, offset: const Offset(0, 3))]),
           child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text('📅', style: TextStyle(fontSize: 22)),
-            SizedBox(width: 8),
-            Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Calendrier', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-              Text('Saisons de pêche', style: TextStyle(color: Colors.white70, fontSize: 10)),
-            ]),
+            Text('📅', style: TextStyle(fontSize: 16)),
+            SizedBox(width: 6),
+            Text('Calendrier', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
           ]),
         ),
       )),
-      const SizedBox(width: 12),
+      const SizedBox(width: 10),
       Expanded(child: GestureDetector(
-        onTap: () => _openUrl('https://where.peche.fr/'),
+        onTap: () => Navigator.push(context,
+            CupertinoPageRoute(builder: (_) => const FishingMapScreen())),
         child: Container(
-          height: 60,
+          height: 44,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
               begin: Alignment.topLeft, end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [BoxShadow(color: const Color(0xFF2E7D32).withOpacity(0.25), blurRadius: 12, offset: const Offset(0, 4))],
-          ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [BoxShadow(color: const Color(0xFF2E7D32).withOpacity(0.22), blurRadius: 8, offset: const Offset(0, 3))]),
           child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text('🗺️', style: TextStyle(fontSize: 22)),
-            SizedBox(width: 8),
-            Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Carte pêche', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-              Text('Zones autorisées', style: TextStyle(color: Colors.white70, fontSize: 10)),
-            ]),
+            Text('🗺️', style: TextStyle(fontSize: 16)),
+            SizedBox(width: 6),
+            Text('Carte pêche', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
           ]),
         ),
       )),
     ]);
-  }
-
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   // ── Fil des prises ───────────────────────────────────────────────────
