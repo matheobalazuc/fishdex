@@ -31,8 +31,13 @@ class MessagesScreen extends StatelessWidget {
       body: StreamBuilder<List<Conversation>>(
         stream: MessagingService.conversationsStream(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
+          if (snap.connectionState == ConnectionState.waiting &&
+              snap.data == null) {
             return const Center(child: CupertinoActivityIndicator());
+          }
+          if (snap.hasError) {
+            return Center(child: Text('Erreur : ${snap.error}',
+              style: const TextStyle(color: FishdexTheme.textSecondary)));
           }
           final convs = snap.data ?? [];
           if (convs.isEmpty) {

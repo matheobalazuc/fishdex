@@ -131,11 +131,14 @@ class MessagingService {
     return _db
         .collection('conversations')
         .where('participants', arrayContains: uid)
-        .orderBy('lastAt', descending: true)
         .snapshots()
-        .map((s) => s.docs
-            .map((d) => Conversation.fromDoc(uid, d.id, d.data()))
-            .toList())
+        .map((s) {
+          final list = s.docs
+              .map((d) => Conversation.fromDoc(uid, d.id, d.data()))
+              .toList()
+            ..sort((a, b) => b.lastAt.compareTo(a.lastAt));
+          return list;
+        })
         .handleError((_) => <Conversation>[]);
   }
 

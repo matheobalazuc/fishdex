@@ -19,29 +19,7 @@ import '../widgets/glass_card.dart';
 
 const _apiUrl = 'https://struck-dept-delayed-resulted.trycloudflare.com/api/predict';
 
-const _frenchNames = {
-  'Sparus aurata': 'Daurade royale',
-  'Spondyliosoma cantharus': 'Dorade grise',
-  'Pagellus erythrinus': 'Pageot rouge',
-  'Diplodus puntazzo': 'Sar museau pointu',
-  'Oblada melanurus': 'Oblada',
-  'Dicentrarchus labrax': 'Bar commun',
-  'Mugil cephalus': 'Mulet cabot',
-  'Esox lucius': 'Brochet commun',
-  'Salmo trutta': 'Truite fario',
-  'Cyprinus carpio': 'Carpe commune',
-  'Sander lucioperca': 'Sandre',
-  'Perca fluviatilis': 'Perche',
-  'Anguilla anguilla': 'Anguille européenne',
-  'Thunnus thynnus': 'Thon rouge',
-  'Solea solea': 'Sole commune',
-  'Merluccius merluccius': 'Merlu',
-  'Tinca tinca': 'Tanche',
-  'Abramis brama': 'Brème',
-  'Rutilus rutilus': 'Gardon',
-};
-
-String _fr(String latin) => _frenchNames[latin] ?? latin;
+String _fr(String name) => name;
 
 String _emoji(String family) {
   switch (family.toLowerCase()) {
