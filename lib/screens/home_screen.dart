@@ -228,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(14),
             boxShadow: [BoxShadow(color: const Color(0xFF2E7D32).withOpacity(0.22), blurRadius: 8, offset: const Offset(0, 3))]),
           child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text('🗺️', style: TextStyle(fontSize: 16)),
+            Icon(CupertinoIcons.map_fill, color: Colors.white, size: 16),
             SizedBox(width: 6),
             Text('Carte pêche', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
           ]),
@@ -273,20 +273,23 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             final catches = snap.data ?? [];
             if (catches.isEmpty) {
-              return GlassCard(child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(children: [
-                  const Text('🌊', style: TextStyle(fontSize: 36)),
-                  const SizedBox(height: 8),
-                  const Text('Aucune prise publiée pour l\'instant',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
-                  const SizedBox(height: 4),
-                  const Text('Va dans ta collection et publie une prise !',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 12)),
-                ]),
-              ));
+              return SizedBox(
+                width: double.infinity,
+                child: GlassCard(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(children: [
+                    const Text('🌊', style: TextStyle(fontSize: 36)),
+                    const SizedBox(height: 8),
+                    const Text('Aucune prise publiée pour l\'instant',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)),
+                    const SizedBox(height: 4),
+                    const Text('Va dans ta collection et publie une prise !',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: FishdexTheme.textTertiary, fontSize: 12)),
+                  ]),
+                )),
+              );
             }
             return Column(
               children: catches.asMap().entries.map((e) =>
@@ -446,11 +449,14 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             final catches = snap.data ?? [];
             if (catches.isEmpty) {
-              return GlassCard(child: const Padding(
-                padding: EdgeInsets.all(18),
-                child: Text('Aucune prise pour l\'instant. Utilise la caméra !',
-                  style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13),
-                  textAlign: TextAlign.center)));
+              return SizedBox(
+                width: double.infinity,
+                child: GlassCard(child: const Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Text('Aucune prise pour l\'instant. Utilise la caméra !',
+                    style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 13),
+                    textAlign: TextAlign.center))),
+              );
             }
             return SizedBox(
               height: 150,
