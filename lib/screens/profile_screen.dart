@@ -899,10 +899,8 @@ class _AuthViewState extends State<_AuthView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(width: 80, height: 80,
-                decoration: const BoxDecoration(shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00C6E0)])),
-                child: const Center(child: Text('🐟', style: TextStyle(fontSize: 40))),
+              ClipOval(
+                child: Image.asset('assets/images/logo.png', width: 80, height: 80, fit: BoxFit.cover),
               ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
               const SizedBox(height: 16),
               const Text('Fishdex',

@@ -141,13 +141,8 @@ class _HomeScreenState extends State<HomeScreen> {
             color: Colors.white.withOpacity(0.5),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                width: 28, height: 28,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [FishdexTheme.primary, Color(0xFF00C6E0)]),
-                ),
-                child: const Center(child: Text('🐟', style: TextStyle(fontSize: 14))),
+              ClipOval(
+                child: Image.asset('assets/images/logo.png', width: 28, height: 28, fit: BoxFit.cover),
               ),
               const SizedBox(width: 8),
               const Text('Fishdex',
