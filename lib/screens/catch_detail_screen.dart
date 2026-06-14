@@ -370,7 +370,7 @@ class _CatchDetailScreenState extends State<CatchDetailScreen> {
       ]),
       const SizedBox(height: 10),
       Wrap(spacing: 8, children: [
-        _pill(_c.family, FishdexTheme.primary),
+        if (_c.family.isNotEmpty && _c.family != 'Inconnue') _pill(_c.family, FishdexTheme.primary),
         if (!_c.isManualEntry) _pill('${(_c.confidence * 100).toStringAsFixed(1)}%', FishdexTheme.mint),
         if (_c.isPublished) _pill(_c.isPrivate ? '🔒 Privé' : '🌍 Public', FishdexTheme.golden),
       ]),

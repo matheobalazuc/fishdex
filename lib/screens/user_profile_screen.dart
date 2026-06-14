@@ -10,6 +10,7 @@ import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 import 'catch_detail_screen.dart';
 import 'conversation_screen.dart';
+import 'profile_screen.dart' show FollowListSheet;
 
 class UserProfileScreen extends StatefulWidget {
   final String userId;
@@ -134,12 +135,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             StreamBuilder<int>(
               stream: FollowService.followersCountStream(userId),
-              builder: (_, s) => _stat('${s.data ?? 0}', 'Abonnés'),
+              builder: (_, s) => GestureDetector(
+                onTap: () => _showFollowList(context, userId, isFollowers: true),
+                child: _stat('${s.data ?? 0}', 'Abonnés')),
             ),
             _div(),
             StreamBuilder<int>(
               stream: FollowService.followingCountStream(userId),
-              builder: (_, s) => _stat('${s.data ?? 0}', 'Abonnements'),
+              builder: (_, s) => GestureDetector(
+                onTap: () => _showFollowList(context, userId, isFollowers: false),
+                child: _stat('${s.data ?? 0}', 'Abonnements')),
             ),
             _div(),
             _stat('$catches', 'Prises'),
@@ -296,4 +301,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget _fallback() => Container(
     color: FishdexTheme.primary.withOpacity(0.07),
     child: const Center(child: Text('🐟', style: TextStyle(fontSize: 22))));
+
+  void _showFollowList(BuildContext context, String uid, {required bool isFollowers}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FollowListSheet(uid: uid, isFollowers: isFollowers),
+    );
+  }
 }

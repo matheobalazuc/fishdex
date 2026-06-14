@@ -11,6 +11,7 @@ import '../services/hotspot_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 import 'catch_detail_screen.dart';
+import 'user_profile_screen.dart';
 
 const _kVersion   = '1.0.0';
 const _kBuildDate = '11/06/2026';
@@ -213,12 +214,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           StreamBuilder<int>(
             stream: FollowService.followersCountStream(user.uid),
-            builder: (_, s) => _followStat('${s.data ?? 0}', 'Abonnés'),
+            builder: (_, s) => GestureDetector(
+              onTap: () => _showFollowList(context, user.uid, isFollowers: true),
+              child: _followStat('${s.data ?? 0}', 'Abonnés')),
           ),
           _divider(),
           StreamBuilder<int>(
             stream: FollowService.followingCountStream(user.uid),
-            builder: (_, s) => _followStat('${s.data ?? 0}', 'Abonnements'),
+            builder: (_, s) => GestureDetector(
+              onTap: () => _showFollowList(context, user.uid, isFollowers: false),
+              child: _followStat('${s.data ?? 0}', 'Abonnements')),
           ),
           _divider(),
           _followStat('$speciesCount', 'Espèces'),
@@ -626,6 +631,113 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ]),
         );
       },
+    );
+  }
+}
+
+void _showFollowList(BuildContext context, String uid, {required bool isFollowers}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => FollowListSheet(uid: uid, isFollowers: isFollowers),
+  );
+}
+
+class FollowListSheet extends StatefulWidget {
+  final String uid;
+  final bool isFollowers;
+  const FollowListSheet({required this.uid, required this.isFollowers});
+
+  @override
+  State<FollowListSheet> createState() => FollowListSheetState();
+}
+
+class FollowListSheetState extends State<FollowListSheet> {
+  late Future<List<Map<String, dynamic>>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.isFollowers
+        ? FollowService.getFollowersList(widget.uid)
+        : FollowService.getFollowingList(widget.uid);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.isFollowers ? 'Abonnés' : 'Abonnements';
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      maxChildSize: 0.92,
+      minChildSize: 0.4,
+      builder: (_, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        child: Column(children: [
+          const SizedBox(height: 12),
+          Container(width: 36, height: 4,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 16),
+          Text(title, style: const TextStyle(
+            color: FishdexTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Divider(height: 1, color: Colors.black.withOpacity(0.06)),
+          Expanded(child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CupertinoActivityIndicator());
+              }
+              final users = snap.data ?? [];
+              if (users.isEmpty) {
+                return Center(child: Text(
+                  widget.isFollowers ? 'Aucun abonné' : 'Aucun abonnement',
+                  style: const TextStyle(color: FishdexTheme.textSecondary, fontSize: 14)));
+              }
+              return ListView.separated(
+                controller: ctrl,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: users.length,
+                separatorBuilder: (_, __) => Divider(
+                  height: 1, indent: 72, color: Colors.black.withOpacity(0.05)),
+                itemBuilder: (ctx, i) {
+                  final u = users[i];
+                  final uid   = u['uid'] as String? ?? '';
+                  final name  = u['displayName'] as String? ?? 'Pêcheur';
+                  final handle = u['username'] as String? ?? '';
+                  return ListTile(
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(ctx, CupertinoPageRoute(
+                        builder: (_) => UserProfileScreen(
+                          userId: uid, displayName: name, userHandle: handle)));
+                    },
+                    leading: Container(
+                      width: 44, height: 44,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [FishdexTheme.primary, Color(0xFF00C6E0)])),
+                      child: const Center(child: Text('🎣', style: TextStyle(fontSize: 20)))),
+                    title: Text(name, style: const TextStyle(
+                      color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+                    subtitle: handle.isNotEmpty
+                        ? Text('@$handle', style: const TextStyle(
+                            color: FishdexTheme.textSecondary, fontSize: 12))
+                        : null,
+                    trailing: const Icon(CupertinoIcons.chevron_right,
+                      color: FishdexTheme.textTertiary, size: 16),
+                  );
+                },
+              );
+            },
+          )),
+        ]),
+      ),
     );
   }
 }

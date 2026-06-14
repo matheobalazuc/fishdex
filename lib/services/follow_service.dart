@@ -64,4 +64,25 @@ class FollowService {
       .snapshots()
       .map((s) => s.size)
       .handleError((_) => 0);
+
+  static Future<List<Map<String, dynamic>>> getFollowersList(String userId) async {
+    final snap = await _db.collection('follows').where('targetId', isEqualTo: userId).get();
+    final uids = snap.docs.map((d) => d.data()['followerId'] as String).toList();
+    return _fetchUsers(uids);
+  }
+
+  static Future<List<Map<String, dynamic>>> getFollowingList(String userId) async {
+    final snap = await _db.collection('follows').where('followerId', isEqualTo: userId).get();
+    final uids = snap.docs.map((d) => d.data()['targetId'] as String).toList();
+    return _fetchUsers(uids);
+  }
+
+  static Future<List<Map<String, dynamic>>> _fetchUsers(List<String> uids) async {
+    if (uids.isEmpty) return [];
+    final results = await Future.wait(uids.map((uid) => _db.collection('users').doc(uid).get()));
+    return results
+        .where((d) => d.exists)
+        .map((d) => {'uid': d.id, ...d.data()!})
+        .toList();
+  }
 }

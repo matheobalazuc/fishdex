@@ -192,63 +192,37 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Actions rapides ──────────────────────────────────────────────────
   Widget _buildQuickActions() {
     return Row(children: [
-      Expanded(child: GestureDetector(
-        onTap: () => Navigator.push(context,
-            CupertinoPageRoute(builder: (_) => const FishingCalendarScreen())),
-        child: Container(
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF4FC3F7), Color(0xFF0288D1)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(color: const Color(0xFF0288D1).withOpacity(0.22), blurRadius: 8, offset: const Offset(0, 3))]),
-          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text('📅', style: TextStyle(fontSize: 16)),
-            SizedBox(width: 6),
-            Text('Calendrier', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-      )),
+      _quickBtn('Calendrier', CupertinoIcons.calendar,
+          () => Navigator.push(context, CupertinoPageRoute(builder: (_) => const FishingCalendarScreen()))),
       const SizedBox(width: 8),
-      Expanded(child: GestureDetector(
-        onTap: () => Navigator.push(context,
-            CupertinoPageRoute(builder: (_) => const FishingMapScreen())),
-        child: Container(
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(color: const Color(0xFF2E7D32).withOpacity(0.22), blurRadius: 8, offset: const Offset(0, 3))]),
-          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(CupertinoIcons.map_fill, color: Colors.white, size: 16),
-            SizedBox(width: 6),
-            Text('Carte pêche', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-      )),
+      _quickBtn('Carte pêche', CupertinoIcons.map,
+          () => Navigator.push(context, CupertinoPageRoute(builder: (_) => const FishingMapScreen()))),
       const SizedBox(width: 8),
-      Expanded(child: GestureDetector(
-        onTap: () => Navigator.push(context,
-            CupertinoPageRoute(builder: (_) => const MarketplaceScreen())),
-        child: Container(
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFFB347), Color(0xFFFF6F00)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(color: const Color(0xFFFF6F00).withOpacity(0.22), blurRadius: 8, offset: const Offset(0, 3))]),
-          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text('🛒', style: TextStyle(fontSize: 16)),
-            SizedBox(width: 6),
-            Text('Marché', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-      )),
+      _quickBtn('Marché', CupertinoIcons.cart,
+          () => Navigator.push(context, CupertinoPageRoute(builder: (_) => const MarketplaceScreen()))),
     ]);
+  }
+
+  Widget _quickBtn(String label, IconData icon, VoidCallback onTap) {
+    return Expanded(child: GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.black.withOpacity(0.08)),
+          boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8, offset: const Offset(0, 2))]),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: FishdexTheme.textSecondary, size: 15),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(
+            color: FishdexTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+        ]),
+      ),
+    ));
   }
 
   // ── Fil des prises ───────────────────────────────────────────────────
@@ -1204,6 +1178,7 @@ class _FeedCard extends StatelessWidget {
                 // Likes + commentaires
                 Row(children: [
                   GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () {
                       if (!AuthService.isLoggedIn) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -1215,17 +1190,20 @@ class _FeedCard extends StatelessWidget {
                         SocialService.toggleLike(catch_.id!, catch_.userId, catch_.frenchName);
                       }
                     },
-                    child: Row(children: [
-                      Icon(
-                        isLiked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-                        color: isLiked ? FishdexTheme.coral : FishdexTheme.textTertiary,
-                        size: 20),
-                      const SizedBox(width: 5),
-                      Text('$likesCnt',
-                        style: TextStyle(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      child: Row(children: [
+                        Icon(
+                          isLiked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
                           color: isLiked ? FishdexTheme.coral : FishdexTheme.textTertiary,
-                          fontSize: 13, fontWeight: FontWeight.w600)),
-                    ]),
+                          size: 22),
+                        const SizedBox(width: 6),
+                        Text('$likesCnt',
+                          style: TextStyle(
+                            color: isLiked ? FishdexTheme.coral : FishdexTheme.textTertiary,
+                            fontSize: 14, fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
                   ),
                   const SizedBox(width: 20),
                   GestureDetector(

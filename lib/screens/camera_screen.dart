@@ -303,22 +303,45 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
     ]),
   ));
 
-  Widget _buildErrorCard() => GlassCard(child: Padding(
-    padding: const EdgeInsets.all(20),
-    child: Column(children: [
-      const Icon(CupertinoIcons.exclamationmark_circle, color: FishdexTheme.coral, size: 32),
-      const SizedBox(height: 8),
-      Text(_error!, style: const TextStyle(color: FishdexTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-      const SizedBox(height: 14),
-      GestureDetector(
-        onTap: _pickedFile != null && _imageBytes != null
-            ? () => _identify(_pickedFile!, _imageBytes!) : _reset,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-          decoration: BoxDecoration(color: FishdexTheme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
-          child: Text('Réessayer', style: TextStyle(color: FishdexTheme.primary, fontWeight: FontWeight.w600)))),
-    ]),
-  ));
+  Widget _buildErrorCard() => SizedBox(
+    width: double.infinity,
+    child: GlassCard(child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(children: [
+        const Icon(CupertinoIcons.wifi_slash, color: FishdexTheme.coral, size: 32),
+        const SizedBox(height: 10),
+        const Text('Serveur IA indisponible',
+          style: TextStyle(color: FishdexTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        const Text('L\'identification automatique n\'est pas disponible pour le moment.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: FishdexTheme.textSecondary, fontSize: 12)),
+        const SizedBox(height: 16),
+        Row(children: [
+          Expanded(child: GestureDetector(
+            onTap: _pickedFile != null && _imageBytes != null
+                ? () => _identify(_pickedFile!, _imageBytes!) : _reset,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                border: Border.all(color: FishdexTheme.primary.withOpacity(0.3)),
+                borderRadius: BorderRadius.circular(12)),
+              child: const Text('Réessayer', textAlign: TextAlign.center,
+                style: TextStyle(color: FishdexTheme.primary, fontWeight: FontWeight.w600, fontSize: 13))))),
+          const SizedBox(width: 10),
+          Expanded(child: GestureDetector(
+            onTap: () => setState(() { _aiEnabled = false; _error = null; }),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: FishdexTheme.primary,
+                borderRadius: BorderRadius.circular(12)),
+              child: const Text('Saisie manuelle', textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13))))),
+        ]),
+      ]),
+    )),
+  );
 
   Widget _buildResultCard() {
     final r = _result;
@@ -612,7 +635,7 @@ class _SaveSheetState extends State<_SaveSheet> {
     final sel        = widget.selectedSpecies;
     final species    = _isManual ? (_latinCtrl.text.trim().isNotEmpty ? _latinCtrl.text.trim() : _nameCtrl.text.trim()) : sel;
     final frenchName = _isManual ? _nameCtrl.text.trim() : _fr(sel);
-    final family     = _isManual ? (_familyCtrl.text.trim().isNotEmpty ? _familyCtrl.text.trim() : 'Inconnue') : r!.family;
+    final family     = _isManual ? _familyCtrl.text.trim() : r!.family;
     final confidence = _isManual ? 1.0 : (r?.top5.firstWhere((e) => e.species == sel, orElse: () => r!.top5.first).score ?? r!.topScore);
     final top5       = _isManual
         ? [{'species': species, 'score': 1.0}]
