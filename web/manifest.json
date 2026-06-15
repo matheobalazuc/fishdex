@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#FFFFFF",
     "theme_color": "#0094C6",
-    "description": "Le Strava de la pêche — identifiez, collectionnez, partagez",
+    "description": "Fishdex — identifiez, collectionnez, partagez",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
