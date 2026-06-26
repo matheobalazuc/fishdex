@@ -17,7 +17,7 @@ import '../services/wiki_service.dart';
 import '../theme/fishdex_theme.dart';
 import '../widgets/glass_card.dart';
 
-const _apiUrl = 'https://national-tip-projection-spare.trycloudflare.com';
+const _apiUrl = 'https://national-tip-projection-spare.trycloudflare.com/api/predict';
 
 String _fr(String name) => name;
 
